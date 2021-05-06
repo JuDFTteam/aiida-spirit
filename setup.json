@@ -1,0 +1,59 @@
+{
+    "name": "aiida-spirit",
+    "author": "The JuDFT Team",
+    "author_email": "p.ruessmann@fz-juelich.de",
+    "description": "AiiDA plugin for the spirit code",
+    "url": "https://github.com/PhilippRue/aiida-spirit",
+    "license": "MIT",
+    "classifiers": [
+        "Programming Language :: Python",
+        "Intended Audience :: Science/Research",
+        "License :: OSI Approved :: MIT License",
+        "Natural Language :: English",
+        "Framework :: AiiDA"
+    ],
+    "version": "0.1.0a0",
+    "entry_points": {
+        "aiida.data": [
+            "spirit = aiida_spirit.data:DiffParameters"
+        ],
+        "aiida.calculations": [
+            "spirit = aiida_spirit.calculations:DiffCalculation"
+        ],
+        "aiida.parsers": [
+            "spirit = aiida_spirit.parsers:DiffParser"
+        ],
+        "aiida.cmdline.data": [
+            "spirit = aiida_spirit.cli:data_cli"
+        ]
+    },
+    "include_package_data": true,
+    "setup_requires": ["reentry"],
+    "reentry_register": true,
+    "install_requires": [
+        "aiida-core>=1.1.0,<2.0.0",
+        "sqlalchemy<1.4",
+        "six",
+        "voluptuous"
+    ],
+    "extras_require": {
+        "testing": [
+            "pgtest~=1.3.1",
+            "wheel~=0.31",
+            "coverage",
+            "pytest~=3.6,<5.0.0",
+            "pytest-cov"
+        ],
+        "pre-commit": [
+            "astroid<2.5",
+            "pre-commit~=2.2",
+            "pylint~=2.5.0"
+        ],
+        "docs": [
+            "sphinx",
+            "sphinxcontrib-contentui",
+            "sphinxcontrib-details-directive; python_version>='3.0'",
+            "sphinx-rtd-theme"
+        ]
+    }
+}
