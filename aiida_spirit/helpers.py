@@ -8,7 +8,9 @@ Helper functions for setting up
 """
 import tempfile
 import shutil
-from aiida.orm import Computer, Code
+import os
+import numpy as np
+from aiida.orm import Dict, StructureData, ArrayData, Computer, Code
 from aiida.common.exceptions import NotExistent
 
 LOCALHOST_NAME = 'localhost-test'
@@ -17,6 +19,34 @@ executables = {
     # e.g. through alias spirit-py="/Users/ruess/sourcecodes/aiida/aiida-spirit/venv_spirit_py/bin/python"
     'spirit': 'spirit-py',
 }
+
+
+def prepare_test_inputs(input_dir):
+    """Prepare the input parameters, structure and load the Jij's
+    for a simple SpiritCalculation for bcc Fe,
+    """
+    # Prepare input parameters
+    parameters = Dict(dict={})
+    # example structure: bcc Fe
+    structure = StructureData(cell=[[1.42002584, 1.42002584, 1.42002584],
+                                    [1.42002584, -1.42002584, -1.42002584],
+                                    [-1.42002584, 1.42002584, -1.42002584]])
+    structure.append_atom(position=[0, 0, 0], symbols='Fe')
+    # create jij couplings input from csv export
+    jijs_expanded = np.load(os.path.join(input_dir, 'Jij_expanded.npy'))
+    jij_data = ArrayData()
+    jij_data.set_array('Jij_expanded', jijs_expanded)
+
+    # set up calculation
+    inputs = {
+        'parameters': parameters,
+        'jij_data': jij_data,
+        'metadata': {
+            'description': 'Test job submission with the aiida_spirit plugin',
+        },
+    }
+
+    return inputs
 
 
 def get_path_to_executable(executable):

@@ -6,11 +6,10 @@ Usage: ./example_01.py
 """
 from os import path
 import click
-import numpy as np
 from aiida import cmdline, engine
-from aiida.orm import Dict, StructureData, ArrayData
 from aiida.plugins import CalculationFactory
 from aiida_spirit import helpers
+from aiida_spirit.helpers import prepare_test_inputs
 
 INPUT_DIR = path.join(path.dirname(path.realpath(__file__)), 'input_files')
 
@@ -25,27 +24,9 @@ def test_run(spirit_code):
         computer = helpers.get_computer()
         spirit_code = helpers.get_code(entry_point='spirit', computer=computer)
 
-    # Prepare input parameters
-    parameters = Dict(dict={})
-    # example structure: bcc Fe
-    structure = StructureData(cell=[[1.42002584, 1.42002584, 1.42002584],
-                                    [1.42002584, -1.42002584, -1.42002584],
-                                    [-1.42002584, 1.42002584, -1.42002584]])
-    structure.append_atom(position=[0, 0, 0], symbols='Fe')
-    # create jij couplings input from csv export
-    jijs_expanded = np.load(path.join(INPUT_DIR, 'Jij_expanded.npy'))
-    jij_data = ArrayData()
-    jij_data.set_array('Jij_expanded', jijs_expanded)
-
-    # set up calculation
-    inputs = {
-        'code': spirit_code,
-        'parameters': parameters,
-        'jij_data': jij_data,
-        'metadata': {
-            'description': 'Test job submission with the aiida_spirit plugin',
-        },
-    }
+    inputs = prepare_test_inputs(INPUT_DIR)
+    # add the spirit code to the inputs
+    inputs['code'] = spirit_code
 
     # Note: in order to submit your calculation to the aiida daemon, do:
     # from aiida.engine import submit
