@@ -9,7 +9,7 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    if: github.repository == 'PhilippRue/aiida-spirit' && startsWith(github.ref, 'refs/tags/v')
+    if: github.repository == 'JuDFTteam/aiida-spirit' && startsWith(github.ref, 'refs/tags/v')
 
     steps:
     - name: Checkout repository

@@ -6,11 +6,14 @@ Usage: ./example_01.py
 """
 from os import path
 import click
+import numpy as np
 from aiida import cmdline, engine
-from aiida.plugins import DataFactory, CalculationFactory
+from aiida.orm import Dict, StructureData, ArrayData
+from aiida.plugins import CalculationFactory
 from aiida_spirit import helpers
 
 INPUT_DIR = path.join(path.dirname(path.realpath(__file__)), 'input_files')
+
 
 def test_run(spirit_code):
     """Run a calculation on the localhost computer.
@@ -23,21 +26,22 @@ def test_run(spirit_code):
         spirit_code = helpers.get_code(entry_point='spirit', computer=computer)
 
     # Prepare input parameters
-    DiffParameters = DataFactory('spirit')  
-    parameters = DiffParameters({'ignore-case': True})
-
-    SinglefileData = DataFactory('singlefile')
-    file1 = SinglefileData(
-        file=path.join(INPUT_DIR, 'file1.txt'))
-    file2 = SinglefileData(
-        file=path.join(INPUT_DIR, 'file2.txt'))
+    parameters = Dict(dict={})
+    # example structure: bcc Fe
+    structure = StructureData(cell=[[1.42002584, 1.42002584, 1.42002584],
+                                    [1.42002584, -1.42002584, -1.42002584],
+                                    [-1.42002584, 1.42002584, -1.42002584]])
+    structure.append_atom(position=[0, 0, 0], symbols='Fe')
+    # create jij couplings input from csv export
+    jijs_expanded = np.load(path.join(INPUT_DIR, 'Jij_expanded.npy'))
+    jij_data = ArrayData()
+    jij_data.set_array('Jij_expanded', jijs_expanded)
 
     # set up calculation
     inputs = {
         'code': spirit_code,
         'parameters': parameters,
-        'file1': file1,
-        'file2': file2,
+        'jij_data': jij_data,
         'metadata': {
             'description': 'Test job submission with the aiida_spirit plugin',
         },
@@ -48,8 +52,8 @@ def test_run(spirit_code):
     # future = submit(CalculationFactory('spirit'), **inputs)
     result = engine.run(CalculationFactory('spirit'), **inputs)
 
-    computed_diff = result['spirit'].get_content()
-    print('Computed diff between files: \n{}'.format(computed_diff))
+    #computed_diff = result['spirit'].get_content()
+    print(f'Computed result: {result}')
 
 
 @click.command()

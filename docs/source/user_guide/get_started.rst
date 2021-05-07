@@ -10,7 +10,7 @@ Installation
 
 Use the following commands to install the plugin::
 
-    git clone https://github.com/PhilippRue/aiida-spirit .
+    git clone https://github.com/JuDFTteam/aiida-spirit .
     cd aiida-spirit
     pip install -e .  # also installs aiida, if missing (but not postgres)
     #pip install -e .[pre-commit,testing] # install extras for more features

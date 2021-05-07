@@ -3,10 +3,8 @@
 Helper functions for setting up
 
  1. An AiiDA localhost computer
- 2. A "diff" code on localhost
+ 2. A "spirit" code on localhost
 
-Note: Point 2 is made possible by the fact that the ``diff`` executable is
-available in the PATH on almost any UNIX system.
 """
 import tempfile
 import shutil
@@ -16,7 +14,8 @@ from aiida.common.exceptions import NotExistent
 LOCALHOST_NAME = 'localhost-test'
 
 executables = {
-    'spirit': 'diff',
+    # e.g. through alias spirit-py="/Users/ruess/sourcecodes/aiida/aiida-spirit/venv_spirit_py/bin/python"
+    'spirit': 'spirit-py',
 }
 
 
@@ -29,7 +28,8 @@ def get_path_to_executable(executable):
     """
     path = shutil.which(executable)
     if path is None:
-        raise ValueError("'{}' executable not found in PATH.".format(executable))
+        raise ValueError(
+            "'{}' executable not found in PATH.".format(executable))
     return path
 
 
@@ -86,7 +86,7 @@ def get_code(entry_point, computer):
     if codes:
         return codes[0]
 
-    path = get_path_to_executable(executable)	
+    path = get_path_to_executable(executable)
     code = Code(
         input_plugin_name=entry_point,
         remote_computer_exec=[computer, path],

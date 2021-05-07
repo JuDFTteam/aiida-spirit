@@ -21,6 +21,7 @@ from aiida.plugins import DataFactory
 def data_cli():
     """Command line interface for aiida-spirit"""
 
+
 @data_cli.command('list')
 @decorators.with_dbenv()
 def list_():  # pylint: disable=redefined-builtin
