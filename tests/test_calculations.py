@@ -2,6 +2,7 @@
 """ Tests for calculations
 
 """
+import os
 from aiida.plugins import CalculationFactory
 from aiida.engine import run
 from aiida_spirit.helpers import prepare_test_inputs
@@ -14,7 +15,7 @@ def test_process(spirit_code):
     note this does not test that the expected outputs are created of output parsing"""
 
     # Prepare input parameters
-    inputs = prepare_test_inputs(TEST_DIR)
+    inputs = prepare_test_inputs(os.path.join(TEST_DIR, 'input_files'))
     inputs['code'] = spirit_code
     inputs['metadata']['options'] = {
         # 5 mins max runtime

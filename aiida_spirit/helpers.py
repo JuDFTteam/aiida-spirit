@@ -41,6 +41,7 @@ def prepare_test_inputs(input_dir):
     inputs = {
         'parameters': parameters,
         'jij_data': jij_data,
+        'structure': structure,
         'metadata': {
             'description': 'Test job submission with the aiida_spirit plugin',
         },
