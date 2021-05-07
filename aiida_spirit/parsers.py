@@ -10,10 +10,10 @@ from aiida.plugins import CalculationFactory
 from aiida.common import exceptions
 from aiida.orm import SinglefileData
 
-DiffCalculation = CalculationFactory('spirit')
+SpiritCalculation = CalculationFactory('spirit')
 
 
-class DiffParser(Parser):
+class SpiritParser(Parser):
     """
     Parser class for parsing output of calculation.
     """
@@ -21,14 +21,14 @@ class DiffParser(Parser):
         """
         Initialize Parser instance
 
-        Checks that the ProcessNode being passed was produced by a DiffCalculation.
+        Checks that the ProcessNode being passed was produced by a SpiritCalculation.
 
         :param node: ProcessNode of calculation
         :param type node: :class:`aiida.orm.ProcessNode`
         """
-        super(DiffParser, self).__init__(node)
-        if not issubclass(node.process_class, DiffCalculation):
-            raise exceptions.ParsingError('Can only parse DiffCalculation')
+        super(SpiritParser, self).__init__(node)
+        if not issubclass(node.process_class, SpiritCalculation):
+            raise exceptions.ParsingError('Can only parse SpiritCalculation')
 
     def parse(self, **kwargs):
         """

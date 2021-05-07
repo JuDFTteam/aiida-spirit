@@ -38,5 +38,5 @@ If you have already set up your own aiida_spirit code using
 Available calculations
 ++++++++++++++++++++++
 
-.. aiida-calcjob:: DiffCalculation
+.. aiida-calcjob:: SpiritCalculation
     :module: aiida_spirit.calculations
