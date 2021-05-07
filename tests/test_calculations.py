@@ -3,9 +3,10 @@
 
 """
 import os
-from aiida.plugins import DataFactory, CalculationFactory
+import numpy as np
+from aiida.plugins import CalculationFactory
 from aiida.engine import run
-from aiida.orm import SinglefileData
+from aiida.orm import Dict, StructureData, ArrayData
 
 from . import TEST_DIR
 
@@ -15,29 +16,31 @@ def test_process(spirit_code):
     note this does not test that the expected outputs are created of output parsing"""
 
     # Prepare input parameters
-    DiffParameters = DataFactory('spirit')
-    parameters = DiffParameters({'ignore-case': True})
-
-    file1 = SinglefileData(
-        file=os.path.join(TEST_DIR, 'input_files', 'file1.txt'))
-    file2 = SinglefileData(
-        file=os.path.join(TEST_DIR, 'input_files', 'file2.txt'))
+    parameters = Dict(dict={})
+    # example structure: bcc Fe
+    structure = StructureData(cell=[[1.42002584, 1.42002584, 1.42002584],
+                                    [1.42002584, -1.42002584, -1.42002584],
+                                    [-1.42002584, 1.42002584, -1.42002584]])
+    structure.append_atom(position=[0, 0, 0], symbols='Fe')
+    # create jij couplings input from csv export
+    jijs_expanded = np.load(
+        os.path.join(TEST_DIR, 'input_files', 'Jij_expanded.npy'))
+    jij_data = ArrayData()
+    jij_data.set_array('Jij_expanded', jijs_expanded)
 
     # set up calculation
     inputs = {
         'code': spirit_code,
         'parameters': parameters,
-        'file1': file1,
-        'file2': file2,
+        'jij_data': jij_data,
         'metadata': {
+            'description': 'Test job submission with the aiida_spirit plugin',
             'options': {
-                'max_wallclock_seconds': 30
+                'max_wallclock_seconds': 300  # 5 mins max runtime
             },
         },
     }
 
     result = run(CalculationFactory('spirit'), **inputs)
-    computed_diff = result['spirit'].get_content()
 
-    assert 'content1' in computed_diff
-    assert 'content2' in computed_diff
+    assert result is not None
