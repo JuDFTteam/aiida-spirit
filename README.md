@@ -39,6 +39,16 @@ pre-commit install  # install pre-commit hooks
 pytest -v  # discover and run all tests
 ```
 
+Note that `pytest -v` will create a test database and profile which requires to find the `pg_ctl` command.
+If `pg_ctl` is not found you need to nake sure that postgres is installed and then add the localtion of
+`pg_ctl` to the `PATH`:
+```
+# add postgres path for pg_ctl to PATH
+# this is an example for Postgres 9.6 installed on a mac
+PATH="/Applications/Postgres.app/Contents/Versions/9.6/bin/:$PATH"
+export PATH
+```
+
 ## License
 
 MIT
