@@ -12,3 +12,5 @@
 build/
 dist/
 pip-wheel-metadata/
+# virtual environments
+venv*

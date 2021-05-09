@@ -7,10 +7,12 @@ Usage: ./example_01.py
 from os import path
 import click
 from aiida import cmdline, engine
-from aiida.plugins import DataFactory, CalculationFactory
+from aiida.plugins import CalculationFactory
 from aiida_spirit import helpers
+from aiida_spirit.helpers import prepare_test_inputs
 
 INPUT_DIR = path.join(path.dirname(path.realpath(__file__)), 'input_files')
+
 
 def test_run(spirit_code):
     """Run a calculation on the localhost computer.
@@ -22,34 +24,17 @@ def test_run(spirit_code):
         computer = helpers.get_computer()
         spirit_code = helpers.get_code(entry_point='spirit', computer=computer)
 
-    # Prepare input parameters
-    DiffParameters = DataFactory('spirit')  
-    parameters = DiffParameters({'ignore-case': True})
-
-    SinglefileData = DataFactory('singlefile')
-    file1 = SinglefileData(
-        file=path.join(INPUT_DIR, 'file1.txt'))
-    file2 = SinglefileData(
-        file=path.join(INPUT_DIR, 'file2.txt'))
-
-    # set up calculation
-    inputs = {
-        'code': spirit_code,
-        'parameters': parameters,
-        'file1': file1,
-        'file2': file2,
-        'metadata': {
-            'description': 'Test job submission with the aiida_spirit plugin',
-        },
-    }
+    inputs = prepare_test_inputs(INPUT_DIR)
+    # add the spirit code to the inputs
+    inputs['code'] = spirit_code
 
     # Note: in order to submit your calculation to the aiida daemon, do:
     # from aiida.engine import submit
     # future = submit(CalculationFactory('spirit'), **inputs)
     result = engine.run(CalculationFactory('spirit'), **inputs)
 
-    computed_diff = result['spirit'].get_content()
-    print('Computed diff between files: \n{}'.format(computed_diff))
+    #computed_diff = result['spirit'].get_content()
+    print(f'Computed result: {result}')
 
 
 @click.command()

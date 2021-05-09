@@ -3,9 +3,9 @@
 
 """
 import os
-from aiida.plugins import DataFactory, CalculationFactory
+from aiida.plugins import CalculationFactory
 from aiida.engine import run
-from aiida.orm import SinglefileData
+from aiida_spirit.helpers import prepare_test_inputs
 
 from . import TEST_DIR
 
@@ -15,29 +15,13 @@ def test_process(spirit_code):
     note this does not test that the expected outputs are created of output parsing"""
 
     # Prepare input parameters
-    DiffParameters = DataFactory('spirit')
-    parameters = DiffParameters({'ignore-case': True})
-
-    file1 = SinglefileData(
-        file=os.path.join(TEST_DIR, 'input_files', 'file1.txt'))
-    file2 = SinglefileData(
-        file=os.path.join(TEST_DIR, 'input_files', 'file2.txt'))
-
-    # set up calculation
-    inputs = {
-        'code': spirit_code,
-        'parameters': parameters,
-        'file1': file1,
-        'file2': file2,
-        'metadata': {
-            'options': {
-                'max_wallclock_seconds': 30
-            },
-        },
+    inputs = prepare_test_inputs(os.path.join(TEST_DIR, 'input_files'))
+    inputs['code'] = spirit_code
+    inputs['metadata']['options'] = {
+        # 5 mins max runtime
+        'max_wallclock_seconds': 300
     }
 
     result = run(CalculationFactory('spirit'), **inputs)
-    computed_diff = result['spirit'].get_content()
 
-    assert 'content1' in computed_diff
-    assert 'content2' in computed_diff
+    assert result is not None

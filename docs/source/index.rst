@@ -5,7 +5,7 @@
 The aiida-spirit plugin for `AiiDA`_
 =====================================================
 
-``aiida-spirit`` is available at http://github.com/PhilippRue/aiida-spirit
+``aiida-spirit`` is available at http://github.com/JuDFTteam/aiida-spirit
 
 
 .. toctree::

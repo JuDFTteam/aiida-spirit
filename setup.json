@@ -3,7 +3,7 @@
     "author": "The JuDFT Team",
     "author_email": "p.ruessmann@fz-juelich.de",
     "description": "AiiDA plugin for the spirit code",
-    "url": "https://github.com/PhilippRue/aiida-spirit",
+    "url": "https://github.com/JuDFTteam/aiida-spirit",
     "license": "MIT",
     "classifiers": [
         "Programming Language :: Python",
@@ -14,17 +14,11 @@
     ],
     "version": "0.1.0a0",
     "entry_points": {
-        "aiida.data": [
-            "spirit = aiida_spirit.data:DiffParameters"
-        ],
         "aiida.calculations": [
-            "spirit = aiida_spirit.calculations:DiffCalculation"
+            "spirit = aiida_spirit.calculations:SpiritCalculation"
         ],
         "aiida.parsers": [
-            "spirit = aiida_spirit.parsers:DiffParser"
-        ],
-        "aiida.cmdline.data": [
-            "spirit = aiida_spirit.cli:data_cli"
+            "spirit = aiida_spirit.parsers:SpiritParser"
         ]
     },
     "include_package_data": true,
@@ -33,8 +27,7 @@
     "install_requires": [
         "aiida-core>=1.1.0,<2.0.0",
         "sqlalchemy<1.4",
-        "six",
-        "voluptuous"
+        "numpy"
     ],
     "extras_require": {
         "testing": [
