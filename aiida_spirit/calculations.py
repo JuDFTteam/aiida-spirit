@@ -64,7 +64,7 @@ class SpiritCalculation(CalcJob):
             return ret_str
             
         new_dict = {}
-        f_orig = open('./data/input_o.cfg','r')
+        f_orig = open('./data/input_original.cfg','r')
         for num, line in enumerate(f_orig, 1):
             new_dict[num] = line                 # create dictionary with keys=line_number and values=line_text
                 
