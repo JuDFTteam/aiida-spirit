@@ -4,14 +4,17 @@ Calculations provided by aiida_spirit.
 
 Register calculations via the "aiida.calculations" entry point in setup.json.
 """
+from os import path
 from aiida.common import datastructures
 from aiida.engine import CalcJob
 from aiida.orm import CalcJobNode, Dict, StructureData, ArrayData
 from pandas import DataFrame
 
+TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
+                          'data/input_original.cfg')
+
 
 class SpiritCalculation(CalcJob):
-
     @classmethod
     def define(cls, spec):
         """Define inputs and outputs of the calculation."""
@@ -42,11 +45,11 @@ class SpiritCalculation(CalcJob):
             needed by the calculation.
         :return: `aiida.common.datastructures.CalcInfo` instance
         """
-         ##############################################
-    	# CREATE .cfg FILE FROM DICTIONARY OF SETTINGS/PARAMETERS
-    	# from the dictionary given by the AiiDA node, the input.cfg file is created
-        
-        parameters = self.inputs.parameters 
+        ##############################################
+        # CREATE .cfg FILE FROM DICTIONARY OF SETTINGS/PARAMETERS
+        # from the dictionary given by the AiiDA node, the input.cfg file is created
+
+        parameters = self.inputs.parameters
         input_dict = parameters.get_dict() #(would it be better to use "try, except" ?)
 
 
@@ -62,61 +65,60 @@ class SpiritCalculation(CalcJob):
             splitted[1]  = new_value
             ret_str = splitted[0] + whitespace_count*' ' + splitted[1] + '\n'
             return ret_str
-            
+
         new_dict = {}
-        f_orig = open('./data/input_original.cfg','r')
-        for num, line in enumerate(f_orig, 1):
-            new_dict[num] = line                 # create dictionary with keys=line_number and values=line_text
-                
-            if line[0] != '#' or '\n':             # if line is not a comment or line is not empty
-                                                    # check if the parameter has to be modified and use function to modify line if needed
-                l_param_value = line.split(' ',1)
-                param = l_param_value[0]
+        with open(TEMPLATE_PATH,'r') as f_orig:
+            for num, line in enumerate(f_orig, 1):
+                new_dict[num] = line                 # create dictionary with keys=line_number and values=line_text
 
-                if param in input_dict.keys():
-                    if param not in ['bravais lattice', 'interaction_pairs_file']:
-                        modif_line = modify_line(line, input_dict[param])
-                        new_dict[num] = modif_line
+                if line[0] != '#' or '\n':             # if line is not a comment or line is not empty
+                    # check if the parameter has to be modified and use function to modify line if needed
+                    l_param_value = line.split(' ',1)
+                    param = l_param_value[0]
 
-
-                ##############################################
-                # MODIFY "GEOMETRY" SECTION FROM .cfg FILE
-                # from the StructureData node given as an input, the "GEOMETRY" section is created
-
-                if param == 'bravais lattice':
-
-                    structure = self.inputs.structure
-
-                    # bravais lattice using bravais vectors
-                    cell = structure.cell
-                    sv = ''
-                    for element in cell:
-                        string_v = ' '.join(map(str, element))
-                        sv += string_v + '\n'
-                    # sites in unit cell
-                    num_sites = len(structure.sites)
-                    sites_pos = ''
-                    for site in structure.sites:
-                        string_pos = ' '.join(map(str, site.position))
-                        sites_pos += string_pos + '\n'
-
-                    # write geometry section to file
-                    geomtry_string = 'bravais_vector\n' + sv + '\n' + 'basis\n' + str(num_sites) + '\n' + sites_pos
-                    new_dict[num] = geometry_string
-
-        
-        f_created = open('input_created.cfg','w')  # write new contents to a new file, which will be used for the calculations
-        text = ''
-        for element in new_dict:
-            text += new_dict[element]
-        f_created.write(text)
-        f_orig.close()
-        f_created.close()
+                    if param in input_dict.keys():
+                        if param not in ['bravais lattice', 'interaction_pairs_file']:
+                            modif_line = modify_line(line, input_dict[param])
+                            new_dict[num] = modif_line
 
 
+                    ##############################################
+                    # MODIFY "GEOMETRY" SECTION FROM .cfg FILE
+                    # from the StructureData node given as an input, the "GEOMETRY" section is created
 
-    	##############################################
-   		# CREATE "couplings.txt" FILE FROM Jij
+                    if param == 'bravais lattice':
+
+                        structure = self.inputs.structure
+
+                        # bravais lattice using bravais vectors
+                        cell = structure.cell
+                        sv = ''
+                        for element in cell:
+                            string_v = ' '.join(map(str, element))
+                            sv += string_v + '\n'
+                        # sites in unit cell
+                        num_sites = len(structure.sites)
+                        sites_pos = ''
+                        for site in structure.sites:
+                            string_pos = ' '.join(map(str, site.position))
+                            sites_pos += string_pos + '\n'
+
+                        # write geometry section to file
+                        geomtry_string = 'bravais_vector\n' + sv + '\n' + 'basis\n' + str(num_sites) + '\n' + sites_pos
+                        new_dict[num] = geometry_string
+
+
+        with folder.open('input_created.cfg','w') as f_created:
+            # write new contents to a new file, which will be used for the calculations
+            text = ''
+            for element in new_dict:
+                text += new_dict[element]
+            f_created.write(text)
+
+
+
+    ##############################################
+    # CREATE "couplings.txt" FILE FROM Jij
 
         jij_data = self.inputs.jij_data
         jij_expanded = jij_data.get_array('Jij_expanded') # Extracts the Jij_expanded array from the collection of numpy arrays
