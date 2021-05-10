@@ -40,7 +40,7 @@ class SpiritCalculation(CalcJob):
     def prepare_for_submission(self, folder):
         """
         Create input files.
-        
+
         :param folder: an `aiida.common.folders.Folder` where the plugin should temporarily place all files
             needed by the calculation.
         :return: `aiida.common.datastructures.CalcInfo` instance
@@ -54,7 +54,7 @@ class SpiritCalculation(CalcJob):
 
 
         def modify_line(my_string, new_value):  # gets a line and the new parameter value as inputs and returns the line with the new parameter
-            splitted = my_string.split(' ',1)
+            splitted = my_string.split(' ', 1)
             cnt = 0
             for element in splitted[1]:
                 if element == ' ':
@@ -62,18 +62,18 @@ class SpiritCalculation(CalcJob):
                 else:
                     break
             whitespace_count = cnt + 1
-            splitted[1]  = new_value
+            splitted[1] = new_value
             ret_str = splitted[0] + whitespace_count*' ' + splitted[1] + '\n'
             return ret_str
 
         new_dict = {}
-        with open(TEMPLATE_PATH,'r') as f_orig:
+        with open(TEMPLATE_PATH, 'r') as f_orig:
             for num, line in enumerate(f_orig, 1):
                 new_dict[num] = line                 # create dictionary with keys=line_number and values=line_text
 
                 if line[0] != '#' or '\n':             # if line is not a comment or line is not empty
                     # check if the parameter has to be modified and use function to modify line if needed
-                    l_param_value = line.split(' ',1)
+                    l_param_value = line.split(' ', 1)
                     param = l_param_value[0]
 
                     if param in input_dict.keys():
@@ -108,7 +108,7 @@ class SpiritCalculation(CalcJob):
                         new_dict[num] = geometry_string
 
 
-        with folder.open('input_created.cfg','w') as f_created:
+        with folder.open('input_created.cfg', 'w') as f_created:
             # write new contents to a new file, which will be used for the calculations
             text = ''
             for element in new_dict:
@@ -123,7 +123,7 @@ class SpiritCalculation(CalcJob):
         jij_data = self.inputs.jij_data
         jij_expanded = jij_data.get_array('Jij_expanded') # Extracts the Jij_expanded array from the collection of numpy arrays
 
-        jijs_df = DataFrame(jij_data_expanded, columns=['i', 'j', 'da', 'db', 'dc', 'Jij']) # Convert the data to a Pandas Dataframe
+        jijs_df = DataFrame(jij_expanded, columns=['i', 'j', 'da', 'db', 'dc', 'Jij']) # Convert the data to a Pandas Dataframe
         jijs_df = jijs_df.astype({'i':'int64', 'j':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'Jij':'float64'})
         # Write the couplings file in csv format that spirit can understand
         with open('couplings.txt', 'w') as f:
