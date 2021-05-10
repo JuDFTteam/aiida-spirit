@@ -27,7 +27,7 @@
     "install_requires": [
         "aiida-core>=1.1.0,<2.0.0",
         "sqlalchemy<1.4",
-        "numpy"
+        "numpy",
         "pandas"
     ],
     "extras_require": {
