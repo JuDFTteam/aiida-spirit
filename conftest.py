@@ -14,4 +14,4 @@ def clear_database_auto(clear_database):  # pylint: disable=unused-argument
 def spirit_code(aiida_local_code_factory):
     """Get a spirit code.
     """
-    return aiida_local_code_factory(executable='diff', entry_point='spirit')
+    return aiida_local_code_factory(executable='python', entry_point='spirit')

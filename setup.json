@@ -36,7 +36,8 @@
             "wheel~=0.31",
             "coverage",
             "pytest~=3.6,<5.0.0",
-            "pytest-cov"
+            "pytest-cov",
+            "spirit"
         ],
         "pre-commit": [
             "astroid<2.5",

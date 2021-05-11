@@ -36,6 +36,10 @@ class SpiritCalculation(CalcJob):
         # define exit codes that are used to terminate the SpiritCalculation
         spec.exit_code(100, 'ERROR_MISSING_OUTPUT_FILES', message='Calculation did not produce all expected output files.')
 
+        # define file names
+        cls._RUN_SPIRIT = 'run_spirit.py' # python file that runs the spirit job through the spirit python API
+        cls._SPIRIT_STDOUT = 'spirit.stdout' # filename where the stdout of the spirit run is put
+
 
     def prepare_for_submission(self, folder):
         """
@@ -126,15 +130,24 @@ class SpiritCalculation(CalcJob):
         jijs_df = DataFrame(jij_expanded, columns=['i', 'j', 'da', 'db', 'dc', 'Jij']) # Convert the data to a Pandas Dataframe
         jijs_df = jijs_df.astype({'i':'int64', 'j':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'Jij':'float64'})
         # Write the couplings file in csv format that spirit can understand
-        with open('couplings.txt', 'w') as f:
+        with folder.open('couplings.txt', 'w') as f:
             jijs_df.to_csv(f, sep='\t', index=False) # spirit wants to have the data separated in tabs
         f.close()
 
+        ##############################################
+        # CREATE "run_spirit.py"
+
+        #TODO: put here he code that write the spirit.py file
+
+
+        ##############################################
+        # FINALLY GIVE THE INFORMATION TO AIIDA
 
         codeinfo = datastructures.CodeInfo()
         codeinfo.code_uuid = self.inputs.code.uuid
-        codeinfo.stdout_name = self.metadata.options.output_filename
         codeinfo.withmpi = self.inputs.metadata.options.withmpi
+        codeinfo.stdin_name = self._RUN_SPIRIT
+        codeinfo.stdout_name = self._SPIRIT_STDOUT
 
         # Prepare a `CalcInfo` to be returned to the engine
         calcinfo = datastructures.CalcInfo()
