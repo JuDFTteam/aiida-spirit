@@ -16,8 +16,8 @@ from aiida.common.exceptions import NotExistent
 LOCALHOST_NAME = 'localhost-test'
 
 executables = {
-    # e.g. through alias spirit-py="/Users/ruess/sourcecodes/aiida/aiida-spirit/venv_spirit_py/bin/python"
-    'spirit': 'spirit-py',
+    # the spirit executable is simply a python environment with the spirit package installed
+    'spirit': 'python',
 }
 
 

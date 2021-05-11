@@ -21,7 +21,7 @@ verdi plugin list aiida.calculations  # should now show your calclulation plugin
 
 Here goes a complete example of how to submit a test calculation using this plugin.
 
-A quick demo of how to submit a calculation:
+A quick demo of how to submit a calculation (the spirit python API needs to be installed for this to work: `pip install spirit`):
 ```shell
 verdi daemon start     # make sure the daemon is running
 cd examples
