@@ -4,7 +4,7 @@ Calculations provided by aiida_spirit.
 
 Register calculations via the "aiida.calculations" entry point in setup.json.
 """
-from os import path
+from os import path #modification to run test
 from aiida.common import datastructures
 from aiida.engine import CalcJob
 from aiida.orm import CalcJobNode, Dict, StructureData, ArrayData
