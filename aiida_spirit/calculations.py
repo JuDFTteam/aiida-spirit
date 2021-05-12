@@ -4,10 +4,10 @@ Calculations provided by aiida_spirit.
 
 Register calculations via the "aiida.calculations" entry point in setup.json.
 """
-from os import path #modification to run test
+from os import path  #modification to run test
 from aiida.common import datastructures
 from aiida.engine import CalcJob
-from aiida.orm import CalcJobNode, Dict, StructureData, ArrayData
+from aiida.orm import Dict, StructureData, ArrayData
 from pandas import DataFrame
 
 TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
@@ -15,6 +15,7 @@ TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
 
 
 class SpiritCalculation(CalcJob):
+    """Run Spirit calculation from user defined inputs."""
     @classmethod
     def define(cls, spec):
         """Define inputs and outputs of the calculation."""
@@ -31,8 +32,10 @@ class SpiritCalculation(CalcJob):
         # new ports
         # put here the input ports (parameters, structure, jij_data
         spec.input('parameters', valid_type=Dict, help='Use a node that specifies the input parameters')
-        spec.input('structure', valid_type=StructureData, required=True, help='Use a node that specifies the input crystal structure')
-        spec.input('jij_data', valid_type=ArrayData, required=True, help='Use a node that specifies the full list of pairwise interactions')
+        spec.input('structure', valid_type=StructureData, required=True,
+                   help='Use a node that specifies the input crystal structure')
+        spec.input('jij_data', valid_type=ArrayData, required=True,
+                   help='Use a node that specifies the full list of pairwise interactions')
         # define exit codes that are used to terminate the SpiritCalculation
         spec.exit_code(100, 'ERROR_MISSING_OUTPUT_FILES', message='Calculation did not produce all expected output files.')
 
@@ -57,7 +60,8 @@ class SpiritCalculation(CalcJob):
         input_dict = parameters.get_dict() #(would it be better to use "try, except" ?)
 
 
-        def modify_line(my_string, new_value):  # gets a line and the new parameter value as inputs and returns the line with the new parameter
+        # gets a line and the new parameter value as inputs and returns the line with the new parameter
+        def modify_line(my_string, new_value):
             splitted = my_string.split(' ', 1)
             cnt = 0
             for element in splitted[1]:
@@ -90,7 +94,7 @@ class SpiritCalculation(CalcJob):
                     # MODIFY "GEOMETRY" SECTION FROM .cfg FILE
                     # from the StructureData node given as an input, the "GEOMETRY" section is created
 
-                    if param == 'bravais lattice':
+                    if param == 'bravais_lattice':
 
                         structure = self.inputs.structure
 
@@ -108,7 +112,7 @@ class SpiritCalculation(CalcJob):
                             sites_pos += string_pos + '\n'
 
                         # write geometry section to file
-                        geomtry_string = 'bravais_vector\n' + sv + '\n' + 'basis\n' + str(num_sites) + '\n' + sites_pos
+                        geometry_string = 'bravais_vector\n' + sv + '\n' + 'basis\n' + str(num_sites) + '\n' + sites_pos
                         new_dict[num] = geometry_string
 
 
@@ -124,20 +128,39 @@ class SpiritCalculation(CalcJob):
     ##############################################
     # CREATE "couplings.txt" FILE FROM Jij
 
-        jij_data = self.inputs.jij_data
-        jij_expanded = jij_data.get_array('Jij_expanded') # Extracts the Jij_expanded array from the collection of numpy arrays
+        jij_data = self.inputs.jij_data # Collection of numpy arrays
+        jij_expanded = jij_data.get_array('Jij_expanded') # Extracts the Jij_expanded array
 
-        jijs_df = DataFrame(jij_expanded, columns=['i', 'j', 'da', 'db', 'dc', 'Jij']) # Convert the data to a Pandas Dataframe
+        jijs_df = DataFrame(jij_expanded, columns=['i', 'j', 'da', 'db', 'dc', 'Jij']) # Convert the data to Pandas Dataframe
         jijs_df = jijs_df.astype({'i':'int64', 'j':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'Jij':'float64'})
         # Write the couplings file in csv format that spirit can understand
         with folder.open('couplings.txt', 'w') as f:
             jijs_df.to_csv(f, sep='\t', index=False) # spirit wants to have the data separated in tabs
-        f.close()
 
         ##############################################
         # CREATE "run_spirit.py"
 
         #TODO: put here he code that write the spirit.py file
+        with folder.open('run_spirit.py', 'w') as f:
+            f.write(
+                """import os
+                import sys
+
+                ### Import Spirit modules
+                from spirit import state
+                from spirit import configuration
+                from spirit import simulation
+                from spirit import io
+
+                cfgfile = "input_created.cfg"
+                quiet = False
+
+                with state.State(cfgfile, quiet) as p_state:
+                    ### LLG dynamics simulation
+                    LLG = simulation.METHOD_LLG
+                    DEPONDT = simulation.SOLVER_DEPONDT # Velocity projection minimiser
+                    simulation.start(p_state, LLG, DEPONDT)
+                """)
 
 
         ##############################################
@@ -154,6 +177,6 @@ class SpiritCalculation(CalcJob):
         calcinfo.codes_info = [codeinfo]
         # this should be a list of the filenames we expect when spirit ran
         # i.e. the files we specify here will be copied back to the file repository
-        calcinfo.retrieve_list = []
+        calcinfo.retrieve_list = [self._SPIRIT_STDOUT]
 
         return calcinfo
