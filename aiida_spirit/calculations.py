@@ -177,6 +177,10 @@ with state.State(cfgfile, quiet) as p_state:
         calcinfo.codes_info = [codeinfo]
         # this should be a list of the filenames we expect when spirit ran
         # i.e. the files we specify here will be copied back to the file repository
-        calcinfo.retrieve_list = [self._SPIRIT_STDOUT]
+        calcinfo.retrieve_list = [self._SPIRIT_STDOUT,
+                                  'spirit_Image-00_Energy-archive.txt',
+                                  'spirit_Image-00_Spins-final.ovf',
+                                  'spirit_Image-00_Spins-initial.ovf'
+                                 ]
 
         return calcinfo
