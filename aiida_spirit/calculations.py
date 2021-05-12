@@ -144,22 +144,22 @@ class SpiritCalculation(CalcJob):
         with folder.open('run_spirit.py', 'w') as f:
             f.write(
                 """import os
-                import sys
+import sys
 
-                ### Import Spirit modules
-                from spirit import state
-                from spirit import configuration
-                from spirit import simulation
-                from spirit import io
+### Import Spirit modules
+from spirit import state
+from spirit import configuration
+from spirit import simulation
+from spirit import io
 
-                cfgfile = "input_created.cfg"
-                quiet = False
+cfgfile = "input_created.cfg"
+quiet = False
 
-                with state.State(cfgfile, quiet) as p_state:
-                    ### LLG dynamics simulation
-                    LLG = simulation.METHOD_LLG
-                    DEPONDT = simulation.SOLVER_DEPONDT # Velocity projection minimiser
-                    simulation.start(p_state, LLG, DEPONDT)
+with state.State(cfgfile, quiet) as p_state:
+    ### LLG dynamics simulation
+    LLG = simulation.METHOD_LLG
+    DEPONDT = simulation.SOLVER_DEPONDT # Velocity projection minimiser
+    simulation.start(p_state, LLG, DEPONDT)
                 """)
 
 
