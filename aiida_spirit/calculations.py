@@ -31,7 +31,15 @@ class SpiritCalculation(CalcJob):
 
         # new ports
         # put here the input ports (parameters, structure, jij_data
-        spec.input('parameters', valid_type=Dict, help='Use a node that specifies the input parameters')
+        spec.input('parameters', valid_type=Dict,
+                   help="""Dict node that allows to control the input parameters for spirit
+                        (see https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html).""")
+        spec.input('run_options', valid_type=Dict, required=False,
+                   default=lambda: Dict(dict={'simulation_method': 'LLG',
+                                              'solver': 'Depondt',
+                                             }),
+                   help="""Dict node that allows to control the spirit run
+                        (e.g. simulation_method=LLG, solver=Depondt).""")
         spec.input('structure', valid_type=StructureData, required=True,
                    help='Use a node that specifies the input crystal structure')
         spec.input('jij_data', valid_type=ArrayData, required=True,
@@ -55,6 +63,40 @@ class SpiritCalculation(CalcJob):
         ##############################################
         # CREATE .cfg FILE FROM DICTIONARY OF SETTINGS/PARAMETERS
         # from the dictionary given by the AiiDA node, the input.cfg file is created
+        self.write_input_cfg(folder)
+
+        ##############################################
+        # CREATE "couplings.txt" FILE FROM Jij
+        self.write_couplings_file(folder)
+
+        ##############################################
+        # CREATE "run_spirit.py"
+        self.write_run_spirit(folder)
+
+        ##############################################
+        # FINALLY GIVE THE INFORMATION TO AIIDA
+        codeinfo = datastructures.CodeInfo()
+        codeinfo.code_uuid = self.inputs.code.uuid
+        codeinfo.withmpi = self.inputs.metadata.options.withmpi
+        codeinfo.stdin_name = self._RUN_SPIRIT
+        codeinfo.stdout_name = self._SPIRIT_STDOUT
+
+        # Prepare a `CalcInfo` to be returned to the engine
+        calcinfo = datastructures.CalcInfo()
+        calcinfo.codes_info = [codeinfo]
+        # this should be a list of the filenames we expect when spirit ran
+        # i.e. the files we specify here will be copied back to the file repository
+        calcinfo.retrieve_list = [self._SPIRIT_STDOUT,
+                                  'spirit_Image-00_Energy-archive.txt',
+                                  'spirit_Image-00_Spins-final.ovf',
+                                  'spirit_Image-00_Spins-initial.ovf'
+                                 ]
+
+        return calcinfo
+
+
+    def write_input_cfg(self, folder):
+        """Write the input.cfg file from the parameters input"""
 
         parameters = self.inputs.parameters
         input_dict = parameters.get_dict() #(would it be better to use "try, except" ?)
@@ -125,8 +167,8 @@ class SpiritCalculation(CalcJob):
 
 
 
-    ##############################################
-    # CREATE "couplings.txt" FILE FROM Jij
+    def write_couplings_file(self, folder):
+        """Write the couplints.txt file that contains the Jij's"""
 
         jij_data = self.inputs.jij_data # Collection of numpy arrays
         jij_expanded = jij_data.get_array('Jij_expanded') # Extracts the Jij_expanded array
@@ -137,50 +179,52 @@ class SpiritCalculation(CalcJob):
         with folder.open('couplings.txt', 'w') as f:
             jijs_df.to_csv(f, sep='\t', index=False) # spirit wants to have the data separated in tabs
 
-        ##############################################
-        # CREATE "run_spirit.py"
 
-        #TODO: put here he code that write the spirit.py file
-        with folder.open('run_spirit.py', 'w') as f:
-            f.write(
-                """import os
-import sys
+    def write_run_spirit(self, folder):
+        """wwrite the run_spirit.py script that controls the spirit python API.
+        """
 
+        # extract run options from input node
+        run_opts = self.inputs.run_options.get_dict()
+
+        # header for run_spirit.py
+        header = """import os
 ### Import Spirit modules
 from spirit import state
 from spirit import configuration
 from spirit import simulation
-from spirit import io
 
 cfgfile = "input_created.cfg"
 quiet = False
 
-with state.State(cfgfile, quiet) as p_state:
-    ### LLG dynamics simulation
-    LLG = simulation.METHOD_LLG
-    DEPONDT = simulation.SOLVER_DEPONDT # Velocity projection minimiser
-    simulation.start(p_state, LLG, DEPONDT)
-                """)
+with state.State(cfgfile, quiet) as p_state:"""        
 
+        # now extract information from run_opts
+        method = run_opts.get('simulation_method')
+        solver = run_opts.get('solver')
+        config = run_opts.get('configuration', {})
 
-        ##############################################
-        # FINALLY GIVE THE INFORMATION TO AIIDA
+        # collect body of run_spirit.py script
+        body = '\n'
 
-        codeinfo = datastructures.CodeInfo()
-        codeinfo.code_uuid = self.inputs.code.uuid
-        codeinfo.withmpi = self.inputs.metadata.options.withmpi
-        codeinfo.stdin_name = self._RUN_SPIRIT
-        codeinfo.stdout_name = self._SPIRIT_STDOUT
+        # set simulation (LLG, MC, ...)
+        # - use method.upper to have case-insensitive input
+        # - remember to end each line with '\n'
+        if method.upper() == 'LLG':
+            body += '    method = simulation.METHOD_LLG\n'
 
-        # Prepare a `CalcInfo` to be returned to the engine
-        calcinfo = datastructures.CalcInfo()
-        calcinfo.codes_info = [codeinfo]
-        # this should be a list of the filenames we expect when spirit ran
-        # i.e. the files we specify here will be copied back to the file repository
-        calcinfo.retrieve_list = [self._SPIRIT_STDOUT,
-                                  'spirit_Image-00_Energy-archive.txt',
-                                  'spirit_Image-00_Spins-final.ovf',
-                                  'spirit_Image-00_Spins-initial.ovf'
-                                 ]
+        # set solver (DEPONDT, ...)
+        if solver.upper() == 'DEPONDT':
+            body += '    solver = simulation.SOLVER_DEPONDT # Velocity projection minimiser\n'
 
-        return calcinfo
+        # set configuration (initialize spins in (plus z, ...)
+        if 'plus_z' in config and config.get('plus_z', False):
+            body += '    configuration.plus_z(p_state) # start from all spins pointing in +z\n'
+
+        # finalize body with starting the spirit simulation
+        body += '    # now run the simulation\n    simulation.start(p_state, method, solver)\n'
+
+        # write run_spirit.py to the folder
+        with folder.open('run_spirit.py', 'w') as f:
+            txt = header + body
+            f.write(txt)
