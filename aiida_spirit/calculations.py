@@ -101,21 +101,6 @@ class SpiritCalculation(CalcJob):
         parameters = self.inputs.parameters
         input_dict = parameters.get_dict() #(would it be better to use "try, except" ?)
 
-
-        # gets a line and the new parameter value as inputs and returns the line with the new parameter
-        def modify_line(my_string, new_value):
-            splitted = my_string.split(' ', 1)
-            cnt = 0
-            for element in splitted[1]:
-                if element == ' ':
-                    cnt += 1
-                else:
-                    break
-            whitespace_count = cnt + 1
-            splitted[1] = new_value
-            ret_str = splitted[0] + whitespace_count*' ' + splitted[1] + '\n'
-            return ret_str
-
         new_dict = {}
         with open(TEMPLATE_PATH, 'r') as f_orig:
             for num, line in enumerate(f_orig, 1):
@@ -128,7 +113,7 @@ class SpiritCalculation(CalcJob):
 
                     if param in input_dict.keys():
                         if param not in ['bravais lattice', 'interaction_pairs_file']:
-                            modif_line = modify_line(line, input_dict[param])
+                            modif_line = _modify_line(line, input_dict[param])
                             new_dict[num] = modif_line
 
 
@@ -137,24 +122,7 @@ class SpiritCalculation(CalcJob):
                     # from the StructureData node given as an input, the "GEOMETRY" section is created
 
                     if param == 'bravais_lattice':
-
-                        structure = self.inputs.structure
-
-                        # bravais lattice using bravais vectors
-                        cell = structure.cell
-                        sv = ''
-                        for element in cell:
-                            string_v = ' '.join(map(str, element))
-                            sv += string_v + '\n'
-                        # sites in unit cell
-                        num_sites = len(structure.sites)
-                        sites_pos = ''
-                        for site in structure.sites:
-                            string_pos = ' '.join(map(str, site.position))
-                            sites_pos += string_pos + '\n'
-
-                        # write geometry section to file
-                        geometry_string = 'bravais_vector\n' + sv + '\n' + 'basis\n' + str(num_sites) + '\n' + sites_pos
+                        geometry_string = self.get_bravais_info()
                         new_dict[num] = geometry_string
 
 
@@ -165,6 +133,29 @@ class SpiritCalculation(CalcJob):
                 text += new_dict[element]
             f_created.write(text)
 
+
+    def get_bravais_info(self):
+        """construct the string that sets the geometry via the bravais_lattice input"""
+
+        structure = self.inputs.structure
+
+        # bravais lattice using bravais vectors
+        cell = structure.cell
+        sv = ''
+        for element in cell:
+            string_v = ' '.join(map(str, element))
+            sv += string_v + '\n'
+        # sites in unit cell
+        num_sites = len(structure.sites)
+        sites_pos = ''
+        for site in structure.sites:
+            string_pos = ' '.join(map(str, site.position))
+            sites_pos += string_pos + '\n'
+
+        # write geometry section to file
+        geometry_string = 'bravais_vector\n' + sv + '\n' + 'basis\n' + str(num_sites) + '\n' + sites_pos
+
+        return geometry_string
 
 
     def write_couplings_file(self, folder):
@@ -197,7 +188,7 @@ from spirit import simulation
 cfgfile = "input_created.cfg"
 quiet = False
 
-with state.State(cfgfile, quiet) as p_state:"""        
+with state.State(cfgfile, quiet) as p_state:"""
 
         # now extract information from run_opts
         method = run_opts.get('simulation_method')
@@ -228,3 +219,18 @@ with state.State(cfgfile, quiet) as p_state:"""
         with folder.open('run_spirit.py', 'w') as f:
             txt = header + body
             f.write(txt)
+
+
+def _modify_line(my_string, new_value):
+    """gets a line and the new parameter value as inputs and returns the line with the new parameter."""
+    splitted = my_string.split(' ', 1)
+    cnt = 0
+    for element in splitted[1]:
+        if element == ' ':
+            cnt += 1
+        else:
+            break
+    whitespace_count = cnt + 1
+    splitted[1] = new_value
+    ret_str = splitted[0] + whitespace_count*' ' + splitted[1] + '\n'
+    return ret_str
