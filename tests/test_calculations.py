@@ -69,12 +69,12 @@ def test_spirit_calc_with_param(spirit_code):
     # prepare parameters
     parameters = Dict(
         dict={
-            'llg_temperature': '10',  # 10 K temperature noise
-            'external_field_magnitude': '2.0',  # external field of 2 T
+            'llg_temperature': 10.0,  # 10 K temperature noise
+            'external_field_magnitude': 2.0,  # external field of 2 T
             'external_field_normal':
-            '0.0 0.0 1.0',  # external field points in z direction
-            'mu_s': '2.2',  # change spin moment to have the right size for Fe
-            'llg_n_iterations': '20000'  # limit the number of iterations
+            [0.0, 0.0, 1.0],  # external field points in z direction
+            'mu_s': 2.2,  # change spin moment to have the right size for Fe
+            'llg_n_iterations': 20000  # limit the number of iterations
         })
     inputs['parameters'] = parameters
 
@@ -110,6 +110,8 @@ def check_outcome(result, threshold=1e-5):
     assert 'spirit.stdout' in out_file_list
     with ret.open('spirit.stdout') as _file:
         txt = _file.readlines()
+        #from pprint import pprint
+        #pprint(txt)
     assert len(txt) > 100
 
     # check some lines in the spirit std output

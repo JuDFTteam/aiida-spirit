@@ -5,13 +5,13 @@
 Usage: ./example_01.py
 """
 from os import path
+import numpy as np
 import click
 from aiida import cmdline, engine
+from aiida.orm import Dict
 from aiida.plugins import CalculationFactory
 from aiida_spirit import helpers
 from aiida_spirit.helpers import prepare_test_inputs
-from aiida.orm import Dict
-import numpy as np
 
 INPUT_DIR = path.join(path.dirname(path.realpath(__file__)), 'input_files')
 OUTPUT_DIR = path.join(path.dirname(path.realpath(__file__)),
