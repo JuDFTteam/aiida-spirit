@@ -38,14 +38,16 @@ def test_run(spirit_code):
     for i in range(0, 1051, 50):
         parameters = Dict(
             dict={
-                'llg_temperature': str(i),  # temperature noise (in K)
-                'external_field_magnitude':
-                '0.005',  # external field of 0.005 T
-                'external_field_normal':
-                '0.0 0.0 1.0',  # external field points in z direction
-                'mu_s':
-                '2.2',  # change spin moment to have the right size for Fe
-                'llg_n_iterations': '200000'  # limit the number of iterations
+                # temperature noise (in K)
+                'llg_temperature': i,
+                # external field of 0.005 T
+                'external_field_magnitude': 0.005,
+                # external field points in z direction
+                'external_field_normal': [0.0, 0.0, 1.0],
+                # change spin moment to have the right size for Fe
+                'mu_s': 2.2,
+                # limit the number of iterations
+                'llg_n_iterations': 200000
             })
         inputs['parameters'] = parameters
 

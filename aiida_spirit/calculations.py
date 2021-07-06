@@ -7,11 +7,20 @@ Register calculations via the "aiida.calculations" entry point in setup.json.
 from os import path  #modification to run test
 from aiida.common import datastructures
 from aiida.engine import CalcJob
-from aiida.orm import Dict, StructureData, ArrayData
+from aiida.orm import Dict, StructureData, ArrayData, SinglefileData
 from pandas import DataFrame
+from .data._formatting_info import _forbidden_keys
+from .data._type_check import verify_input_para  #, validate_input_dict
 
 TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
                           'data/input_original.cfg')
+
+_SPIRIT_STDOUT = 'spirit.stdout'  # filename where the stdout of the spirit run is put
+# Default retrieve list
+_RETLIST = [
+    _SPIRIT_STDOUT, 'spirit_Image-00_Energy-archive.txt',
+    'spirit_Image-00_Spins-final.ovf', 'spirit_Image-00_Spins-initial.ovf'
+]
 
 
 class SpiritCalculation(CalcJob):
@@ -44,13 +53,16 @@ class SpiritCalculation(CalcJob):
                    help='Use a node that specifies the input crystal structure')
         spec.input('jij_data', valid_type=ArrayData, required=True,
                    help='Use a node that specifies the full list of pairwise interactions')
+        # define output nodes
+        spec.output('output_parameters', valid_type=SinglefileData, required=True,
+                    help='Spirit output file, to be replaced by some parsed values stored as a dict')
+        spec.output('magnetization', valid_type=ArrayData, required=True,
+                    help='initial and final magnetization and energy convergence')
         # define exit codes that are used to terminate the SpiritCalculation
         spec.exit_code(100, 'ERROR_MISSING_OUTPUT_FILES', message='Calculation did not produce all expected output files.')
 
         # define file names
         cls._RUN_SPIRIT = 'run_spirit.py' # python file that runs the spirit job through the spirit python API
-        cls._SPIRIT_STDOUT = 'spirit.stdout' # filename where the stdout of the spirit run is put
-
 
     def prepare_for_submission(self, folder):
         """
@@ -79,18 +91,14 @@ class SpiritCalculation(CalcJob):
         codeinfo.code_uuid = self.inputs.code.uuid
         codeinfo.withmpi = self.inputs.metadata.options.withmpi
         codeinfo.stdin_name = self._RUN_SPIRIT
-        codeinfo.stdout_name = self._SPIRIT_STDOUT
+        codeinfo.stdout_name = _SPIRIT_STDOUT
 
         # Prepare a `CalcInfo` to be returned to the engine
         calcinfo = datastructures.CalcInfo()
         calcinfo.codes_info = [codeinfo]
         # this should be a list of the filenames we expect when spirit ran
         # i.e. the files we specify here will be copied back to the file repository
-        calcinfo.retrieve_list = [self._SPIRIT_STDOUT,
-                                  'spirit_Image-00_Energy-archive.txt',
-                                  'spirit_Image-00_Spins-final.ovf',
-                                  'spirit_Image-00_Spins-initial.ovf'
-                                 ]
+        calcinfo.retrieve_list = _RETLIST
 
         return calcinfo
 
@@ -100,79 +108,78 @@ class SpiritCalculation(CalcJob):
 
         parameters = self.inputs.parameters
         input_dict = parameters.get_dict() #(would it be better to use "try, except" ?)
+        # extract structure information
+        structure = self.inputs.structure
+        if 'boundary_conditions' not in input_dict:
+            # overwrite boundary conditions from pbc of structure
+            # do this only if nothing is given in the input parameters
+            input_dict['boundary_conditions'] = structure.pbc
 
-        new_dict = {}
+        # go through the template input config and overwrite values from inputs
+        input_file = []
         with open(TEMPLATE_PATH, 'r') as f_orig:
-            for num, line in enumerate(f_orig, 1):
-                new_dict[num] = line                 # create dictionary with keys=line_number and values=line_text
+            for line in f_orig:
+                input_file.append(line)
 
-                if line[0] != '#' or '\n':             # if line is not a comment or line is not empty
+                if line[0] != '#' or '\n':
+                    # if line is not a comment or line is not empty
                     # check if the parameter has to be modified and use function to modify line if needed
                     l_param_value = line.split(' ', 1)
-                    param = l_param_value[0]
+                    key = l_param_value[0]
 
-                    if param in input_dict.keys():
-                        if param not in ['bravais lattice', 'interaction_pairs_file']:
-                            modif_line = _modify_line(line, input_dict[param])
-                            new_dict[num] = modif_line
-
+                    if key in input_dict:
+                        if key not in _forbidden_keys:
+                            val_str = verify_input_para(key, input_dict[key])
+                            input_file[-1] = _modify_line(line, val_str)
 
                     ##############################################
                     # MODIFY "GEOMETRY" SECTION FROM .cfg FILE
                     # from the StructureData node given as an input, the "GEOMETRY" section is created
+                    if key == 'bravais_lattice':
+                        geometry_string = _get_geometry(structure)
+                        input_file.append(geometry_string)
 
-                    if param == 'bravais_lattice':
-                        geometry_string = self.get_bravais_info()
-                        new_dict[num] = geometry_string
-
-
+        # write new contents to a new file, which will be used for the calculations
         with folder.open('input_created.cfg', 'w') as f_created:
-            # write new contents to a new file, which will be used for the calculations
-            text = ''
-            for element in new_dict:
-                text += new_dict[element]
-            f_created.write(text)
+            f_created.writelines(input_file)
 
 
-    def get_bravais_info(self):
-        """construct the string that sets the geometry via the bravais_lattice input"""
 
-        structure = self.inputs.structure
-
-        # bravais lattice using bravais vectors
-        cell = structure.cell
-        sv = ''
-        for element in cell:
-            string_v = ' '.join(map(str, element))
-            sv += string_v + '\n'
-        # sites in unit cell
-        num_sites = len(structure.sites)
-        sites_pos = ''
-        for site in structure.sites:
-            string_pos = ' '.join(map(str, site.position))
-            sites_pos += string_pos + '\n'
-
-        # write geometry section to file
-        geometry_string = 'bravais_vector\n' + sv + '\n' + 'basis\n' + str(num_sites) + '\n' + sites_pos
-
-        return geometry_string
-
-
-    def write_couplings_file(self, folder):
+    def write_couplings_file(self, folder): # pylint: disable=unused-argument
         """Write the couplints.txt file that contains the Jij's"""
 
         jij_data = self.inputs.jij_data # Collection of numpy arrays
         jij_expanded = jij_data.get_array('Jij_expanded') # Extracts the Jij_expanded array
 
-        jijs_df = DataFrame(jij_expanded, columns=['i', 'j', 'da', 'db', 'dc', 'Jij']) # Convert the data to Pandas Dataframe
-        jijs_df = jijs_df.astype({'i':'int64', 'j':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'Jij':'float64'})
+        # create Dataframe and use either Jijs and DMI vectors or only Jijs if no Dijs are given
+        # maybe we need an option to not use the DMI vector even if they are found?
+        # Convert the data to Pandas Dataframe
+        has_dmi = False
+        if len(jij_expanded[0]) >= 8:
+            # has Dij's
+            jijs_df = DataFrame(jij_expanded[:, :9], columns=['i', 'j', 'da', 'db', 'dc', 'Jij', 'Dx', 'Dy', 'Dz'])
+            has_dmi = True
+        elif len(jij_expanded[0]) >= 6:
+            # has Jijs
+            jijs_df = DataFrame(jij_expanded[:, :6], columns=['i', 'j', 'da', 'db', 'dc', 'Jij'])
+        else:
+            # no Jijs found, stop here
+            raise ValueError('jij_data invalid')
+
+        if not has_dmi:
+            jijs_df = jijs_df.astype({'i':'int64', 'j':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'Jij':'float64'})
+        else:
+            jijs_df = jijs_df.astype({'i':'int64', 'j':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'Jij':'float64',
+                                      'Dx':'float64', 'Dy':'float64', 'Dz':'float64'})
+
         # Write the couplings file in csv format that spirit can understand
         with folder.open('couplings.txt', 'w') as f:
-            jijs_df.to_csv(f, sep='\t', index=False) # spirit wants to have the data separated in tabs
+            # spirit wants to have the data separated in tabs
+            jijs_df.to_csv(f, sep='\t', index=False)
 
 
     def write_run_spirit(self, folder):
-        """wwrite the run_spirit.py script that controls the spirit python API.
+        """write the run_spirit.py script that controls the spirit python API.
         """
 
         # extract run options from input node
@@ -220,9 +227,8 @@ with state.State(cfgfile, quiet) as p_state:"""
             txt = header + body
             f.write(txt)
 
-
+# gets a line and the new parameter value as inputs and returns the line with the new parameter
 def _modify_line(my_string, new_value):
-    """gets a line and the new parameter value as inputs and returns the line with the new parameter."""
     splitted = my_string.split(' ', 1)
     cnt = 0
     for element in splitted[1]:
@@ -234,3 +240,23 @@ def _modify_line(my_string, new_value):
     splitted[1] = new_value
     ret_str = splitted[0] + whitespace_count*' ' + splitted[1] + '\n'
     return ret_str
+
+def _get_geometry(structure):
+    """Get the geometry string from the structure"""
+
+    # bravais lattice using bravais vectors
+    cell = structure.cell
+    sv = ''
+    for element in cell:
+        string_v = ' '.join(map(str, element))
+        sv += string_v + '\n'
+    # sites in unit cell
+    num_sites = len(structure.sites)
+    sites_pos = ''
+    for site in structure.sites:
+        string_pos = ' '.join(map(str, site.position))
+        sites_pos += string_pos + '\n'
+
+    # write geometry section to file
+    geometry_string = 'bravais_vector\n' + sv + '\n' + 'basis\n' + str(num_sites) + '\n' + sites_pos
+    return geometry_string
