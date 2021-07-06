@@ -56,10 +56,7 @@ def test_run(spirit_code):
     result = engine.run(CalculationFactory('spirit'), **inputs)
 
     print(f'Computed result: {result}')
-
-    ret = result['retrieved']
-    with ret.open('spirit_Image-00_Spins-final.ovf') as _file:
-        spins_final = np.loadtxt(_file)
+    spins_final = result['magnetization'].get_array('final')
     mag_mean = np.mean(spins_final, axis=0)
 
     print(f'mean magnetization direction: {mag_mean}')

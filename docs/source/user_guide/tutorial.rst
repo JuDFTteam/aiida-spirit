@@ -4,15 +4,15 @@ Tutorial
 
 This page contains a simple tutorial example for your code. The source code can be found under ``example_LLG.py`` in the examples folder.
 
-What we want to achieve
-+++++++++++++++++++++++
+Find the magnetic groud state with and LLG calculation
+++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-We want to compute a LLG simulation for the Fe bcc structure.
+We want to compute the ground state magnetic structure of bcc Fe using an LLG calculation.
 
 Step 1 - prepare parameters
 ---------------------------
 
-The parameters for the simulation have to be given as *key*, *value* pairs inside an `AiiDA Dict <https://aiida.readthedocs.io/projects/aiida-core/en/latest/topics/data_types.html#core-data-types>`_.
+The parameters for the simulation have to be given as *key*, *value* pairs inside an `AiiDA Dict <https://aiida.readthedocs.io/projects/aiida-core/en/latest/topics/data_types.html#core-data-types>`_. These set up the spirit calculation, define the Hamiltonian and allow to include external parameters like applying an external magnetic field. Information on what paramters can be set are listed on the `spirit documentation <https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html>`_. Note that the aiida-spirit plugin uses python booleans (`True/False`) for logical inputs and includes some type checking. Some parameters are set automatically by the plugin (e.g. the structure and coupling constants) and cannot be set in the input parameters.
 
 ::
 
@@ -20,21 +20,18 @@ The parameters for the simulation have to be given as *key*, *value* pairs insid
 	parameters = Dict(
 	    dict={
 	        # temperature noise (in K)
-	        'llg_temperature': '50',
+	        'llg_temperature': 50,
 	        # external field of 5 mT
-	        'external_field_magnitude': '0.005',
+	        'external_field_magnitude': 0.005,
 	        # external field points in z direction
-	        'external_field_normal': '0.0 0.0 1.0',
+	        'external_field_normal': [0.0, 0.0, 1.0],
 	        # change spin moment to have the right size for Fe
-	        'mu_s': '2.2',
+	        'mu_s': 2.2,
 	        # limit the number of iterations
-	        'llg_n_iterations': '2000'
+	        'llg_n_iterations': 2000
 	    })
 	inputs['parameters'] = parameters
 
-The **keys** of the parameters need to be written exactly as in the `Spirit input file <https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html>`_ and the **values** need to be of type ``string`` and also formatted as in the input file (check spacing in vectors).
-
-The **keys** ``bravais lattice`` and ``interaction_pairs_file`` don't have to be given in the parameters *dictionary* as the structure and interaction pairs data will be passed using separate inputs.
 
 Step 2 - set structure
 ----------------------
@@ -45,8 +42,8 @@ If we wanted to use a different structure, we would have to give a valid `AiiDA 
 
 	# set structure
 	structure = StructureData(cell=[[3.0, 0.0, 0.0],
-	                                    [0.0, 3.0, 0.0],
-	                                    [0.0, 0.0, 3.0]])
+	                                [0.0, 3.0, 0.0],
+	                                [0.0, 0.0, 3.0]])
 	structure.append_atom(position=[1.5, 1.5, 1.5], symbols='Li')
 
 	inputs['structure'] = structure
@@ -57,7 +54,7 @@ Step 3 - create jij inputs
 --------------------------
 
 The interaction pairs are given to the spirit input file using a separate file. The jij inputs by default are also the ones corresponding to the Fe bcc, so in this example we don't need to pass them.
-For other cases, we will need to pass a valid `AiiDA ArrayData <https://aiida.readthedocs.io/projects/aiida-core/en/latest/topics/data_types.html#arraydata>`_ containing the interaction pairs. In the example below we use a ``numpy`` array with the data to create the **AiiDA ArrayData** input.
+For other cases, we will need to pass a valid `AiiDA ArrayData <https://aiida.readthedocs.io/projects/aiida-core/en/latest/topics/data_types.html#arraydata>`_ containing the interaction pairs. In the example below we use a ``numpy`` array with the data to create the **AiiDA ArrayData** input. **The `jij_data` ArrayData needs to set the `Jij_expanded` array which is used in the spirit calculation! No other name is allowed.**
 ::
 
 	# create jij inputs
@@ -75,13 +72,11 @@ After running the calculation
 
 	result = engine.run(CalculationFactory('spirit'), **inputs)
 
-we may want to ouput some results. In order to do that, we need to access the folder where the calculation outputs are created. In this example we want to get the mean magnetization for each direction. For that, we access the output file containing the final configuration and using ``numpy.mean`` we calculate the mean magnetization.
+we may want to ouput some results. Spirit provides the output of the calculation in the output nodes `output_parameters` and `magentization` where the initial and final magnetization is stored for each spin in the simulation. We can use this information for the final configuration and using ``numpy.mean`` calculate the mean magnetization.
 ::
 
 	# output results
-	ret = result['retrieved']
-	with ret.open('spirit_Image-00_Spins-final.ovf') as _file:
-	    spins_final = np.loadtxt(_file)
+        spins_final = result['magnetization'].get_array('final')
 	mag_mean = np.mean(spins_final, axis=0)
 
 	print(f'mean magnetization direction: {mag_mean}')
@@ -126,18 +121,28 @@ A sample code structure for running a simulation could be the one presented belo
 	        spirit_code = helpers.get_code(entry_point='spirit', computer=computer)
 
 	    # use template input, prepared for a simple bcc Fe example
+	    # this is where the structure and the jij's are set already
 	    inputs = prepare_test_inputs(INPUT_DIR)
 
 	    # add the spirit code to the inputs
 	    inputs['code'] = spirit_code
 
-
 	    # This is where you prepare the parameters
+            parameters = Dict(
+                dict={
+                    'llg_temperature': 10.0,  # 10 K temperature noise
+                    'external_field_magnitude': 2.0,  # external field of 2 T
+                    'external_field_normal': [0.0, 0.0, 1.0],  # external field points in z direction
+                    'mu_s': 2.2,  # change spin moment to have the right size for Fe
+                    'llg_n_iterations': 20000  # limit the number of iterations
+                })
+            inputs['parameters'] = parameters
 
-	    # This is where you set the structure
-
-	    # This is where you create the jij inputs
-
+	    # This is where you prepare control the run modes of spirit (here LLG)
+            inputs['run_options'] = Dict(dict={
+                'simulation_method': 'LLG',
+                'solver': 'Depondt',
+            })
 
 	    # Note: in order to submit your calculation to the aiida daemon, do:
 	    # from aiida.engine import submit
