@@ -7,13 +7,20 @@ Register calculations via the "aiida.calculations" entry point in setup.json.
 from os import path  #modification to run test
 from aiida.common import datastructures
 from aiida.engine import CalcJob
-from aiida.orm import Dict, StructureData, ArrayData
+from aiida.orm import Dict, StructureData, ArrayData, SinglefileData
 from pandas import DataFrame
 from .data._formatting_info import _forbidden_keys
 from .data._type_check import verify_input_para  #, validate_input_dict
 
 TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
                           'data/input_original.cfg')
+
+_SPIRIT_STDOUT = 'spirit.stdout'  # filename where the stdout of the spirit run is put
+# Default retrieve list
+_RETLIST = [
+    _SPIRIT_STDOUT, 'spirit_Image-00_Energy-archive.txt',
+    'spirit_Image-00_Spins-final.ovf', 'spirit_Image-00_Spins-initial.ovf'
+]
 
 
 class SpiritCalculation(CalcJob):
@@ -46,13 +53,16 @@ class SpiritCalculation(CalcJob):
                    help='Use a node that specifies the input crystal structure')
         spec.input('jij_data', valid_type=ArrayData, required=True,
                    help='Use a node that specifies the full list of pairwise interactions')
+        # define output nodes
+        spec.output('output_parameters', valid_type=SinglefileData, required=True,
+                    help='Spirit output file, to be replaced by some parsed values stored as a dict')
+        spec.output('magnetization', valid_type=ArrayData, required=True,
+                    help='initial and final magnetization and energy convergence')
         # define exit codes that are used to terminate the SpiritCalculation
         spec.exit_code(100, 'ERROR_MISSING_OUTPUT_FILES', message='Calculation did not produce all expected output files.')
 
         # define file names
         cls._RUN_SPIRIT = 'run_spirit.py' # python file that runs the spirit job through the spirit python API
-        cls._SPIRIT_STDOUT = 'spirit.stdout' # filename where the stdout of the spirit run is put
-
 
     def prepare_for_submission(self, folder):
         """
@@ -81,18 +91,14 @@ class SpiritCalculation(CalcJob):
         codeinfo.code_uuid = self.inputs.code.uuid
         codeinfo.withmpi = self.inputs.metadata.options.withmpi
         codeinfo.stdin_name = self._RUN_SPIRIT
-        codeinfo.stdout_name = self._SPIRIT_STDOUT
+        codeinfo.stdout_name = _SPIRIT_STDOUT
 
         # Prepare a `CalcInfo` to be returned to the engine
         calcinfo = datastructures.CalcInfo()
         calcinfo.codes_info = [codeinfo]
         # this should be a list of the filenames we expect when spirit ran
         # i.e. the files we specify here will be copied back to the file repository
-        calcinfo.retrieve_list = [self._SPIRIT_STDOUT,
-                                  'spirit_Image-00_Energy-archive.txt',
-                                  'spirit_Image-00_Spins-final.ovf',
-                                  'spirit_Image-00_Spins-initial.ovf'
-                                 ]
+        calcinfo.retrieve_list = _RETLIST
 
         return calcinfo
 

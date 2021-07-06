@@ -6,7 +6,7 @@ import os
 import numpy as np
 from aiida.plugins import CalculationFactory
 from aiida.orm import Dict
-from aiida.engine import run
+from aiida.engine import run, run_get_node
 from aiida_spirit.helpers import prepare_test_inputs
 
 from . import TEST_DIR
@@ -44,8 +44,9 @@ def test_spirit_calc(spirit_code):
         'max_wallclock_seconds': 300
     }
 
-    result = run(CalculationFactory('spirit'), **inputs)
-    print(result)
+    result, node = run_get_node(CalculationFactory('spirit'), **inputs)
+    print(result, node)
+    assert node.is_finished_ok
 
     # check consistency of the output files
     check_outcome(result)
@@ -78,14 +79,21 @@ def test_spirit_calc_with_param(spirit_code):
         })
     inputs['parameters'] = parameters
 
+    # run options input dict
+    inputs['run_options'] = Dict(dict={
+        'simulation_method': 'LLG',
+        'solver': 'Depondt',
+    })
+
     # first a dry run
     inputs['metadata']['dry_run'] = True
     result = run(CalculationFactory('spirit'), **inputs)
 
     # then run the calculation
     inputs['metadata']['dry_run'] = False
-    result = run(CalculationFactory('spirit'), **inputs)
+    result, node = run_get_node(CalculationFactory('spirit'), **inputs)
     print(result)
+    assert node.is_finished_ok
 
     # check consistency of the output files
     spins_final = check_outcome(result, threshold=0.10)
@@ -124,18 +132,14 @@ def check_outcome(result, threshold=1e-5):
     assert int(warnings) == 0
 
     # check if initial and final spin image make sense
-    assert 'spirit_Image-00_Spins-initial.ovf' in out_file_list
-    with ret.open('spirit_Image-00_Spins-initial.ovf') as _file:
-        spins_initial = np.loadtxt(_file)
+    spins_initial = result['magnetization'].get_array('initial')
     var_initial = np.std(spins_initial, axis=0).max()
-    print(var_initial)
+    print('std initial', var_initial)
     assert var_initial > 0.4
 
-    assert 'spirit_Image-00_Spins-final.ovf' in out_file_list
-    with ret.open('spirit_Image-00_Spins-final.ovf') as _file:
-        spins_final = np.loadtxt(_file)
+    spins_final = result['magnetization'].get_array('final')
     var_final = np.std(spins_final, axis=0).max()
-    print(var_final)
+    print('std final', var_final)
     assert var_final < threshold
 
     return spins_final

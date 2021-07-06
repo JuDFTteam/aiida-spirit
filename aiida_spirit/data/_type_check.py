@@ -34,10 +34,12 @@ def validate_int(key, val, minval=None, maxval=None):
     validate_range(key, val, minval, maxval)
 
 
-def validate_float(key, val, minval=None, maxval=None):
+def validate_float(key, val, minval=None, maxval=None, allow_int=True):
     """validate float"""
     # check type
-    if not isinstance(val, float):
+    isfloat = isinstance(val, float)
+    isint = isinstance(val, int)
+    if not (isfloat or (allow_int and isint)):
         raise TypeError(
             f'Type of {key} is not a single float ({val}, {type(val)}).')
     # check range
