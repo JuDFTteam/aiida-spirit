@@ -5,10 +5,11 @@ Calculations provided by aiida_spirit.
 Register calculations via the "aiida.calculations" entry point in setup.json.
 """
 from os import path  #modification to run test
+import numpy as np
+from pandas import DataFrame
 from aiida.common import datastructures
 from aiida.engine import CalcJob
-from aiida.orm import Dict, StructureData, ArrayData, SinglefileData
-from pandas import DataFrame
+from aiida.orm import Dict, StructureData, ArrayData
 from .data._formatting_info import _forbidden_keys
 from .data._type_check import verify_input_para  #, validate_input_dict
 
@@ -54,8 +55,8 @@ class SpiritCalculation(CalcJob):
         spec.input('jij_data', valid_type=ArrayData, required=True,
                    help='Use a node that specifies the full list of pairwise interactions')
         # define output nodes
-        spec.output('output_parameters', valid_type=SinglefileData, required=True,
-                    help='Spirit output file, to be replaced by some parsed values stored as a dict')
+        spec.output('output_parameters', valid_type=Dict, required=True,
+                    help='Parsed values from the spirit stdout, stored as Dict for quick access.')
         spec.output('magnetization', valid_type=ArrayData, required=True,
                     help='initial and final magnetization and energy convergence')
         # define exit codes that are used to terminate the SpiritCalculation
@@ -137,7 +138,7 @@ class SpiritCalculation(CalcJob):
                     # from the StructureData node given as an input, the "GEOMETRY" section is created
                     if key == 'bravais_lattice':
                         geometry_string = _get_geometry(structure)
-                        input_file.append(geometry_string)
+                        input_file[-1] = geometry_string
 
         # write new contents to a new file, which will be used for the calculations
         with folder.open('input_created.cfg', 'w') as f_created:
@@ -157,7 +158,13 @@ class SpiritCalculation(CalcJob):
         has_dmi = False
         if len(jij_expanded[0]) >= 8:
             # has Dij's
-            jijs_df = DataFrame(jij_expanded[:, :9], columns=['i', 'j', 'da', 'db', 'dc', 'Jij', 'Dx', 'Dy', 'Dz'])
+            # compute magnitude of DMI vector and add after Jij column
+            # Dx, Dy, Dz are only used to get direction
+            jd = np.zeros((len(jij_expanded), 10))
+            jd[:, :6] = jij_expanded[:, :6]
+            jd[:, 6] = np.sqrt(np.sum(jij_expanded[:, 6:9]**2, axis=1))
+            jd[:, 7:10] = jij_expanded[:, 6:9]
+            jijs_df = DataFrame(jd, columns=['i', 'j', 'da', 'db', 'dc', 'Jij', 'Dij', 'Dijx', 'Dijy', 'Dijz'])
             has_dmi = True
         elif len(jij_expanded[0]) >= 6:
             # has Jijs
@@ -170,7 +177,7 @@ class SpiritCalculation(CalcJob):
             jijs_df = jijs_df.astype({'i':'int64', 'j':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'Jij':'float64'})
         else:
             jijs_df = jijs_df.astype({'i':'int64', 'j':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'Jij':'float64',
-                                      'Dx':'float64', 'Dy':'float64', 'Dz':'float64'})
+                                      'Dij':'float64', 'Dijx':'float64', 'Dijy':'float64', 'Dijz':'float64'})
 
         # Write the couplings file in csv format that spirit can understand
         with folder.open('couplings.txt', 'w') as f:
@@ -179,8 +186,7 @@ class SpiritCalculation(CalcJob):
 
 
     def write_run_spirit(self, folder):
-        """write the run_spirit.py script that controls the spirit python API.
-        """
+        """write the run_spirit.py script that controls the spirit python API."""
 
         # extract run options from input node
         run_opts = self.inputs.run_options.get_dict()
@@ -245,18 +251,29 @@ def _get_geometry(structure):
     """Get the geometry string from the structure"""
 
     # bravais lattice using bravais vectors
-    cell = structure.cell
+    cell = np.array(structure.cell)
+
+    # transformation matrix to relative coordinates
+    U2rel = np.linalg.inv(cell.transpose())
+
+    # bravais vectors as strings
     sv = ''
     for element in cell:
         string_v = ' '.join(map(str, element))
         sv += string_v + '\n'
+
     # sites in unit cell
     num_sites = len(structure.sites)
     sites_pos = ''
     for site in structure.sites:
-        string_pos = ' '.join(map(str, site.position))
+        pos = site.position
+        # transform positions to relative coordinates
+        pos_rel = np.dot(U2rel, pos)
+        pos_rel = pos_rel%1 # fold back to unit cell
+        string_pos = ' '.join(map(str, pos_rel))
         sites_pos += string_pos + '\n'
 
-    # write geometry section to file
-    geometry_string = 'bravais_vector\n' + sv + '\n' + 'basis\n' + str(num_sites) + '\n' + sites_pos
+    # collect string that defines the geometry
+    geometry_string = 'bravais_vectors\n' + sv + '\n' + 'basis\n' + str(num_sites) + '\n' + sites_pos
+
     return geometry_string

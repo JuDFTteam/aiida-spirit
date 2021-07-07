@@ -9,7 +9,8 @@ from aiida.engine import ExitCode
 from aiida.parsers.parser import Parser
 from aiida.plugins import CalculationFactory
 from aiida.common import exceptions
-from aiida.orm import SinglefileData, ArrayData
+from aiida.orm import Dict, ArrayData
+from masci_tools.io.common_functions import search_string
 from .calculations import _RETLIST, _SPIRIT_STDOUT
 
 SpiritCalculation = CalculationFactory('spirit')
@@ -65,9 +66,10 @@ class SpiritParser(Parser):
         # parse info from stdout
         output_filename = _SPIRIT_STDOUT
         self.logger.info("Parsing '{}'".format(output_filename))
-        with retrieved.open(output_filename, 'rb') as _f:
-            output_node = SinglefileData(file=_f)
-            # put some parsing here instead of returning the file ...
+        with retrieved.open(output_filename, 'r') as _f:
+            txt = _f.readlines()
+        out_dict = parse_outfile(txt)
+        output_node = Dict(dict=out_dict)
 
         # parse output files
         self.logger.info('Parsing energy archive')
@@ -92,3 +94,55 @@ class SpiritParser(Parser):
         }
 
         return output_node, mag
+
+
+def parse_outfile(txt):
+    """parse the spirit output file"""
+
+    out_dict = {}
+
+    itmp = search_string('Total duration', txt)
+    if itmp >= 0:
+        t_str = txt[itmp].split()[2]
+        tmp = [float(i) for i in t_str.split(':')]
+        t_sec = tmp[0] * 3600 + tmp[1] * 60 + tmp[2]
+        out_dict['runtime'] = t_str
+        out_dict['runtime_sec'] = t_sec
+
+    itmp = search_string('Iterations / sec', txt)
+    if itmp >= 0:
+        tmp = txt[itmp].split()[-1]
+        it_per_s = float(tmp)
+        out_dict['it_per_s'] = it_per_s
+
+    itmp = search_string('Simulated time', txt)
+    if itmp >= 0:
+        tmp = txt[itmp].split()
+        sim_time = float(tmp[-2])
+        sim_time_unit = tmp[-1]
+        out_dict['simulation_time'] = sim_time
+        out_dict['simulation_time_unit'] = sim_time_unit
+
+    itmp = search_string('Number of  Errors', txt)
+    if itmp >= 0:
+        tmp = txt[itmp].split()
+        num_errors = int(tmp[-1])
+        out_dict['num_errors'] = num_errors
+
+    itmp = search_string('Number of Warnings', txt)
+    if itmp >= 0:
+        tmp = txt[itmp].split()
+        num_warn = int(tmp[-1])
+        out_dict['num_warnings'] = num_warn
+
+    itmp = search_string('Terminated', txt)
+    if itmp >= 0:
+        tmp = txt[itmp].split()
+        out_dict['simulation_mode'] = tmp[-3]
+
+    itmp = search_string('Solver:', txt)
+    if itmp >= 0:
+        tmp = txt[itmp].split()
+        out_dict['solver'] = tmp[-1]
+
+    return out_dict
