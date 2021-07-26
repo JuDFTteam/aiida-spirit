@@ -52,9 +52,10 @@ class SpiritParser(Parser):
             return self.exit_codes.ERROR_MISSING_OUTPUT_FILES
 
         # parse information from output file (number of iterations, convergence info, ...)
-        output_node, mag = self.parse_retrieved()
+        output_node, mag, energ = self.parse_retrieved()
         self.out('output_parameters', output_node)
         self.out('magnetization', mag)
+        self.out('energies', energ)
 
         return ExitCode(0)
 
@@ -86,14 +87,17 @@ class SpiritParser(Parser):
         mag = ArrayData()
         mag.set_array('initial', m_init)
         mag.set_array('final', m_final)
-        mag.set_array('energ', energ)
         mag.extras['description'] = {
             'initial': 'initial directions of the magnetization vectors',
             'final': 'final directions of the magnetization vectors',
-            'energ': 'energy convergence',
+        }
+        energies = ArrayData()
+        energies.set_array('energies', energ)
+        energies.extras['description'] = {
+            'energies': 'energy convergence',
         }
 
-        return output_node, mag
+        return output_node, mag, energies
 
 
 def parse_outfile(txt):

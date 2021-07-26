@@ -74,7 +74,7 @@ def test_spirit_calc_with_param(spirit_code):
             'external_field_magnitude': 2.0,  # external field of 2 T
             'external_field_normal':
             [0.0, 0.0, 1.0],  # external field points in z direction
-            'mu_s': 2.2,  # change spin moment to have the right size for Fe
+            'mu_s': [2.2],  # change spin moment to have the right size for Fe
             'llg_n_iterations': 20000  # limit the number of iterations
         })
     inputs['parameters'] = parameters

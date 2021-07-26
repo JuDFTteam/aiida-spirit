@@ -45,7 +45,7 @@ def test_run(spirit_code):
                 # external field points in z direction
                 'external_field_normal': [0.0, 0.0, 1.0],
                 # change spin moment to have the right size for Fe
-                'mu_s': 2.2,
+                'mu_s': [2.2],
                 # limit the number of iterations
                 'llg_n_iterations': 200000
             })

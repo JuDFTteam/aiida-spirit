@@ -142,15 +142,16 @@ _single_floats = {
     'mmf_force_convergence': [None, None],
     'ema_frequency': [None, None],
     'ema_amplitude': [None, None],
-    'mu_s': [None, None],  # maybe convert to array input?
 }
 
 # values which are arrays of floats
+# last entry decides if all values are put in new lines
 _array_floats = {
     'external_field_normal': [3, None, None],
     'anisotropy_normal': [3, None, None],
     'llg_temperature_gradient_direction': [3, None, None],
     'llg_stt_polarisation_normal': [3, None, None],
+    'mu_s': [None, 0, None],
 }
 
 # values which are strings, together with a list of allowed values

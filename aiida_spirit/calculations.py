@@ -58,7 +58,9 @@ class SpiritCalculation(CalcJob):
         spec.output('output_parameters', valid_type=Dict, required=True,
                     help='Parsed values from the spirit stdout, stored as Dict for quick access.')
         spec.output('magnetization', valid_type=ArrayData, required=True,
-                    help='initial and final magnetization and energy convergence')
+                    help='initial and final magnetization')
+        spec.output('energies', valid_type=ArrayData, required=True,
+                    help='energy convergence')
         # define exit codes that are used to terminate the SpiritCalculation
         spec.exit_code(100, 'ERROR_MISSING_OUTPUT_FILES', message='Calculation did not produce all expected output files.')
 
@@ -109,6 +111,14 @@ class SpiritCalculation(CalcJob):
 
         parameters = self.inputs.parameters
         input_dict = parameters.get_dict() #(would it be better to use "try, except" ?)
+
+        # take out special keywords
+        if 'couplings_cutoff_radius' in input_dict:
+            # this is used in the write_couplings_file to cut the couplings beyond a given radius
+            self.couplings_rcut = input_dict.pop('couplings_cutoff_radius')
+        else:
+            self.couplings_rcut = None
+
         # extract structure information
         structure = self.inputs.structure
         if 'boundary_conditions' not in input_dict:
@@ -165,6 +175,9 @@ class SpiritCalculation(CalcJob):
             jd[:, 6] = np.sqrt(np.sum(jij_expanded[:, 6:9]**2, axis=1))
             jd[:, 7:10] = jij_expanded[:, 6:9]
             jijs_df = DataFrame(jd, columns=['i', 'j', 'da', 'db', 'dc', 'Jij', 'Dij', 'Dijx', 'Dijy', 'Dijz'])
+            jijs_df['Dijx'] /= jijs_df['Dij']
+            jijs_df['Dijy'] /= jijs_df['Dij']
+            jijs_df['Dijz'] /= jijs_df['Dij']
             has_dmi = True
         elif len(jij_expanded[0]) >= 6:
             # has Jijs
@@ -178,6 +191,11 @@ class SpiritCalculation(CalcJob):
         else:
             jijs_df = jijs_df.astype({'i':'int64', 'j':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'Jij':'float64',
                                       'Dij':'float64', 'Dijx':'float64', 'Dijy':'float64', 'Dijz':'float64'})
+
+        # cut all couplings that are futher away that the cutoff radius
+        if self.couplings_rcut is not None:
+            r = np.sqrt(np.sum(jij_data.get_array('positions_expanded')**2, axis=1))
+            jijs_df = jijs_df[r <= self.couplings_rcut]
 
         # Write the couplings file in csv format that spirit can understand
         with folder.open('couplings.txt', 'w') as f:
