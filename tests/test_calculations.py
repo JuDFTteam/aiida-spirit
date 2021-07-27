@@ -12,6 +12,27 @@ from aiida_spirit.helpers import prepare_test_inputs
 from . import TEST_DIR
 
 
+def test_input_para_validator():
+    """Test running a calculation
+    note this does only a dry run to check if the calculation plugin works"""
+
+    # put an invalid type in params and check if the validator captures it
+    for key, val in {
+            'llg_n_iterations': 17.2,
+            'mc_n_iterations': [1, 2, 3],
+            'bravais_lattice': 'test'
+    }.items():
+        parameters = Dict(dict={key: val})
+        builder = CalculationFactory('spirit').get_builder()
+        raised_error = False
+        try:
+            builder.parameters = parameters
+        except (TypeError, ValueError):
+            raised_error = True
+        # check if an error was raised
+        assert raised_error
+
+
 def test_spirit_calc_dry_run(spirit_code):
     """Test running a calculation
     note this does only a dry run to check if the calculation plugin works"""

@@ -13,6 +13,7 @@ from aiida.orm import Dict, StructureData, ArrayData
 from .data._formatting_info import _forbidden_keys
 from .data._type_check import verify_input_para  #, validate_input_dict
 
+# this is the template input config file which is read in and changed according to the inputs
 TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
                           'data/input_original.cfg')
 
@@ -27,6 +28,21 @@ _RETLIST = [
     'spirit_Image-00_Energy-archive.txt', 'spirit_Image-00_Spins-final.ovf',
     'spirit_Image-00_Spins-initial.ovf'
 ]
+
+
+# validators for input ports
+def validate_params(params, _):  # pylint: disable=inconsistent-return-statements
+    """Validate the input parameters."""
+    for key, val in params.get_dict().items():
+        if key not in _forbidden_keys:
+            try:
+                _ = verify_input_para(key, val)
+            except ValueError as err:
+                return f'Parameters validator returned ValueError: {err}'
+            except TypeError as err:
+                return f'Parameters validator returned TypeError: {err}'
+        else:
+            return f'Parameters tries to overwrite an forbidden key: {key}'
 
 
 class SpiritCalculation(CalcJob):
@@ -46,7 +62,8 @@ class SpiritCalculation(CalcJob):
 
         # new ports
         # put here the input ports (parameters, structure, jij_data
-        spec.input('parameters', valid_type=Dict,
+        spec.input('parameters', valid_type=Dict, required=False,
+                   validator=validate_params,
                    help="""Dict node that allows to control the input parameters for spirit
                         (see https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html).""")
         spec.input('run_options', valid_type=Dict, required=False,
