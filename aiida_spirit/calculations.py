@@ -16,11 +16,16 @@ from .data._type_check import verify_input_para  #, validate_input_dict
 TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
                           'data/input_original.cfg')
 
+# define file names
+_RUN_SPIRIT = 'run_spirit.py'  # python file that runs the spirit job through the spirit python API
 _SPIRIT_STDOUT = 'spirit.stdout'  # filename where the stdout of the spirit run is put
+_INPUT_CFG = 'input_created.cfg'  # spirit input file
+
 # Default retrieve list
 _RETLIST = [
-    _SPIRIT_STDOUT, 'spirit_Image-00_Energy-archive.txt',
-    'spirit_Image-00_Spins-final.ovf', 'spirit_Image-00_Spins-initial.ovf'
+    _SPIRIT_STDOUT, _INPUT_CFG, _RUN_SPIRIT,
+    'spirit_Image-00_Energy-archive.txt', 'spirit_Image-00_Spins-final.ovf',
+    'spirit_Image-00_Spins-initial.ovf'
 ]
 
 
@@ -64,8 +69,6 @@ class SpiritCalculation(CalcJob):
         # define exit codes that are used to terminate the SpiritCalculation
         spec.exit_code(100, 'ERROR_MISSING_OUTPUT_FILES', message='Calculation did not produce all expected output files.')
 
-        # define file names
-        cls._RUN_SPIRIT = 'run_spirit.py' # python file that runs the spirit job through the spirit python API
 
     def prepare_for_submission(self, folder):
         """
@@ -93,7 +96,7 @@ class SpiritCalculation(CalcJob):
         codeinfo = datastructures.CodeInfo()
         codeinfo.code_uuid = self.inputs.code.uuid
         codeinfo.withmpi = self.inputs.metadata.options.withmpi
-        codeinfo.stdin_name = self._RUN_SPIRIT
+        codeinfo.stdin_name = _RUN_SPIRIT
         codeinfo.stdout_name = _SPIRIT_STDOUT
 
         # Prepare a `CalcInfo` to be returned to the engine
@@ -113,11 +116,11 @@ class SpiritCalculation(CalcJob):
         input_dict = parameters.get_dict() #(would it be better to use "try, except" ?)
 
         # take out special keywords
+        # this is used in the write_couplings_file to cut the couplings beyond a given radius
+        # works only if the jij_data has positions_extended
+        self.couplings_rcut = None # pylint: disable=attribute-defined-outside-init
         if 'couplings_cutoff_radius' in input_dict:
-            # this is used in the write_couplings_file to cut the couplings beyond a given radius
-            self.couplings_rcut = input_dict.pop('couplings_cutoff_radius')
-        else:
-            self.couplings_rcut = None
+            self.couplings_rcut = input_dict.pop('couplings_cutoff_radius') # pylint: disable=attribute-defined-outside-init
 
         # extract structure information
         structure = self.inputs.structure
@@ -151,13 +154,12 @@ class SpiritCalculation(CalcJob):
                         input_file[-1] = geometry_string
 
         # write new contents to a new file, which will be used for the calculations
-        with folder.open('input_created.cfg', 'w') as f_created:
+        with folder.open(_INPUT_CFG, 'w') as f_created:
             f_created.writelines(input_file)
 
 
-
     def write_couplings_file(self, folder): # pylint: disable=unused-argument
-        """Write the couplints.txt file that contains the Jij's"""
+        """Write the couplings.txt file that contains the Jij's"""
 
         jij_data = self.inputs.jij_data # Collection of numpy arrays
         jij_expanded = jij_data.get_array('Jij_expanded') # Extracts the Jij_expanded array
@@ -234,25 +236,31 @@ with state.State(cfgfile, quiet) as p_state:"""
         # - remember to end each line with '\n'
         if method.upper() == 'LLG':
             body += '    method = simulation.METHOD_LLG\n'
+        # here we need to also allow other methods (HTST,GNEB,...)
 
         # set solver (DEPONDT, ...)
         if solver.upper() == 'DEPONDT':
             body += '    solver = simulation.SOLVER_DEPONDT # Velocity projection minimiser\n'
+        # here we also need to be able to set the other solvers
 
         # set configuration (initialize spins in (plus z, ...)
         if 'plus_z' in config and config.get('plus_z', False):
             body += '    configuration.plus_z(p_state) # start from all spins pointing in +z\n'
+        # here we should add additional configurations
 
         # finalize body with starting the spirit simulation
         body += '    # now run the simulation\n    simulation.start(p_state, method, solver)\n'
 
         # write run_spirit.py to the folder
-        with folder.open('run_spirit.py', 'w') as f:
+        with folder.open(_RUN_SPIRIT, 'w') as f:
             txt = header + body
             f.write(txt)
 
-# gets a line and the new parameter value as inputs and returns the line with the new parameter
+
 def _modify_line(my_string, new_value):
+    """Gets a line and the new parameter value as inputs
+    and returns the line with the new parameter"""
+
     splitted = my_string.split(' ', 1)
     cnt = 0
     for element in splitted[1]:
@@ -264,6 +272,7 @@ def _modify_line(my_string, new_value):
     splitted[1] = new_value
     ret_str = splitted[0] + whitespace_count*' ' + splitted[1] + '\n'
     return ret_str
+
 
 def _get_geometry(structure):
     """Get the geometry string from the structure"""

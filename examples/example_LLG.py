@@ -18,7 +18,7 @@ from aiida_spirit.helpers import prepare_test_inputs
 INPUT_DIR = path.join(path.dirname(path.realpath(__file__)), 'input_files')
 
 
-def test_run(spirit_code):
+def LLG_run(spirit_code):
     """Run a calculation on the localhost computer.
 
     Uses test helpers to create AiiDA Code on the fly.
@@ -74,7 +74,7 @@ def cli(code):
 
     Help: $ ./example_LLG.py --help
     """
-    test_run(code)
+    LLG_run(code)
 
 
 if __name__ == '__main__':

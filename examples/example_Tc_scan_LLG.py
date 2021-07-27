@@ -20,7 +20,7 @@ OUTPUT_DIR = path.join(path.dirname(path.realpath(__file__)),
                        'output_files/temperature_spins.txt')
 
 
-def test_run(spirit_code):
+def LLG_runs(spirit_code):
     """Run a calculation on the localhost computer.
 
     Uses test helpers to create AiiDA Code on the fly.
@@ -81,7 +81,7 @@ def cli(code):
 
     Help: $ ./example_01.py --help
     """
-    test_run(code)
+    LLG_runs(code)
 
 
 if __name__ == '__main__':
