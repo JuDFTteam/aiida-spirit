@@ -1,6 +1,15 @@
 aiida\_spirit package
 =====================
 
+Subpackages
+-----------
+
+.. toctree::
+   :maxdepth: 4
+
+   aiida_spirit.data
+   aiida_spirit.tools
+
 Submodules
 ----------
 

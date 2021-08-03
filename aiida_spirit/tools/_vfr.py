@@ -3,8 +3,8 @@
 Interface to the spirit web view used in the plotting tool.
 """
 
-import numpy as np
 import json
+import numpy as np
 from IPython.core.display import display, HTML, Javascript
 
 

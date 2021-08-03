@@ -88,7 +88,7 @@ After running the calculation
 
 	result = engine.run(CalculationFactory('spirit'), **inputs)
 
-we may want to ouput some results. Spirit provides the output of the calculation in the output nodes `output_parameters` and `magentization` where the initial and final magnetization is stored for each spin in the simulation. We can use this information for the final configuration and using ``numpy.mean`` calculate the mean magnetization.
+we may want to ouput some results. Spirit provides the output of the calculation in the output nodes ``output_parameters`` and ``magentization`` where the initial and final magnetization is stored for each spin in the simulation. We can use this information for the final configuration and using ``numpy.mean`` calculate the mean magnetization.
 ::
 
 	# output results
@@ -98,3 +98,21 @@ we may want to ouput some results. Spirit provides the output of the calculation
 	print(f'mean magnetization direction: {mag_mean}')
 
 This example can be used as a starting point to calculate LLG simulations for different structures and using different parameters. All is needed is to modify the inputs according to the system we want to simulate.
+
+Plotting
+++++++++
+
+AiiDA-Spirit comes with an interactive plotting tool that can be used from jupyter notebooks. An example notebook is given in ``aiida-spirit/examples/AiiDA-Spirit_show_spins_example.ipynb``.
+
+To use the spin visualization tool you first need to initialize the widget::
+
+    from aiida_spirit.tools.plotting import init_spinview, show_spins
+    init_spinview()
+
+Then wait for the widget to load. Once it is loaded you can populate it with a call of ``show_spins`` (here ``spirit_calc`` is assumed to be a finished SpiritCalculation)::
+
+    show_spins(spirit_calc, scale_spins=0.8)
+
+.. figure:: ../images/screenshot_spin_view.png
+    :width: 600px
+    :align: center
