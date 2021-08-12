@@ -139,7 +139,21 @@ AiiDA-Spirit also support special modes of the Spirit code like pinning of certa
 Defects
 -------
 
-Not implemented yet.
+Defects and disorder is supported with AiiDA spirit using the ``defects`` ArrayData input to the ``SpiritCalculation``::
+
+    defects = ArrayData()
+    defects.set_array('defects', np.array([
+        # i, da, db, dc, itype
+        # cut a hole by setting vacancy defects (i.e. itype<0)
+        [0, 2, 2, 2, -1],
+        [0, 2, 2, 3, -1],
+    ]))
+    builder = CalculationFactory('spirit').get_builder()
+    builder.defects = defects
+
+Disorder can be specified with the atom type index in the ``defects`` array and the types can be specified with the corresponding ``atom_types`` array (see help string of the ``defects`` input port of the ``SpiritCalculation`` for more details.
+
+**Attention:** The Defects mode needs a special compilation mode of the Spirit code. See https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html for details.
 
 
 Plotting

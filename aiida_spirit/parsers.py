@@ -91,8 +91,10 @@ class SpiritParser(Parser):
 
         # collect arrays in ArrayData
         mag = ArrayData()
-        mag.set_array('initial', m_init)
-        mag.set_array('final', m_final)
+        mag.set_array(
+            'initial',
+            np.nan_to_num(m_init))  # nan_to_num is needed with defects
+        mag.set_array('final', np.nan_to_num(m_final))
         mag.extras['description'] = {
             'initial': 'initial directions of the magnetization vectors',
             'final': 'final directions of the magnetization vectors',

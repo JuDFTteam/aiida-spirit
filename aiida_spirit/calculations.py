@@ -60,8 +60,7 @@ class SpiritCalculation(CalcJob):
         }
         spec.inputs['metadata']['options']['parser_name'].default = 'spirit'
 
-        # new ports
-        # put here the input ports (parameters, structure, jij_data
+        # put here the input ports (parameters, structure, jij_data, ...)
         spec.input('parameters', valid_type=Dict, required=False,
                    validator=validate_params,
                    help="""Dict node that allows to control the input parameters for spirit
@@ -91,6 +90,17 @@ class SpiritCalculation(CalcJob):
                         See https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html#pinning-a-name-pinning-a
                         for more information on pinning in spirit.
                         """)
+        spec.input('defects', valid_type=ArrayData, required=False,
+                   help="""Use a node that specifies the defects information for all spins
+                        in the spirit supercell. This is an ArrayData object that should
+                        define the defects in the defects array (column should be i, da, db, dc, itype
+                        where itype<0 means vacancy). The atom type information can be given with the
+                        atom_type array in the defects ArrayData that has the columns
+                        (iatom  atom_type  mu_s  concentration).
+                        See https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html
+                        for more information on defects in spirit.
+                        """)
+
         # define output nodes
         spec.output('output_parameters', valid_type=Dict, required=True,
                     help='Parsed values from the spirit stdout, stored as Dict for quick access.')
@@ -98,6 +108,7 @@ class SpiritCalculation(CalcJob):
                     help='initial and final magnetization')
         spec.output('energies', valid_type=ArrayData, required=True,
                     help='energy convergence')
+
         # define exit codes that are used to terminate the SpiritCalculation
         spec.exit_code(100, 'ERROR_MISSING_OUTPUT_FILES', message='Calculation did not produce all expected output files.')
         spec.exit_code(101, 'ERROR_SPIRIT_CODE_INCOMPATIBLE',
@@ -121,6 +132,11 @@ class SpiritCalculation(CalcJob):
         # CREATE "pinning.txt" file if needed
         if 'pinning' in self.inputs:
             self.write_pinning_file(folder)
+
+        ##############################################
+        # CREATE "defects.txt" file if needed
+        if 'defects' in self.inputs:
+            self.write_defects_file(folder)
 
         ##############################################
         # CREATE "couplings.txt" FILE FROM Jij
@@ -148,6 +164,9 @@ class SpiritCalculation(CalcJob):
         if 'pinning' in self.inputs:
             # also retreive the pinning file
             retlist += ['pinning.txt']
+        if 'defects' in self.inputs:
+            # also retreive the defects file
+            retlist += ['defects.txt']
         calcinfo.retrieve_list = retlist
 
         return calcinfo
@@ -203,16 +222,65 @@ class SpiritCalculation(CalcJob):
             pinning_info += 'pinned_from_file pinning.txt\n'
             input_file.append(pinning_info)
 
+        if 'defects' in self.inputs:
+            # put the information for defects into the config file
+            defects_info = self.get_defects_info()
+            input_file.append(defects_info)
 
         # write new contents to a new file, which will be used for the calculations
         with folder.open(_INPUT_CFG, 'w') as f_created:
             f_created.writelines(input_file)
 
 
+    def get_defects_info(self):
+        """Get the defects info that is added to the config file"""
+        # add line that specifies the defects file and add the atom_type info to the config file
+        defects_info = '\n\n# read defects from file\n'
+        defects_info += 'defects_from_file defects.txt\n'
+
+        # add atom_types info if given
+        if 'atom_types' in self.inputs.defects.get_arraynames():
+            atom_types = self.inputs.defects.get_array('atom_types')
+        else:
+            atom_types = []
+
+        if len(atom_types) > 0:
+            defects_info += '\n\n# Disorder type: iatom  atom_type  mu_s  concentration\n'
+            defects_info += f'atom_types {len(set(atom_types[:,0]))}\n'
+            for itype in atom_types:
+                defects_info += f'{itype[0]:i} {itype[1]:i} {itype[2]:f} {itype[3]:f}\n'
+
+        return defects_info
+
+
+    def write_defects_file(self, folder): # pylint: disable=unused-argument
+        """Create the defects.txt file from the defects input array
+
+        We write the `defects.txt` in this format:
+          ### Atom types: type index 0..n or or vacancy (type < 0)
+          ### Specify the number of defects and then the defects in terms of translations and type
+          ### i  da db dc  itype
+          n_defects 3 # this is skipped and all defects that are found in the file are used
+          0  0 0 0  -1
+          0  1 0 0  -1
+          0  0 1 0  -1
+        """
+        # get defects array from the input node
+        defects = self.inputs.defects.get_array('defects')
+
+        # convert to dataframe for easier writeout
+        defects_df = DataFrame(defects, columns=['i', 'da', 'db', 'dc', 'itype'])
+        defects_df = defects_df.astype({'i':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'itype':'int64'})
+
+        # Write the defects file in csv format that spirit can understand
+        with folder.open('defects.txt', 'w') as f:
+            defects_df.to_csv(f, sep='\t', index=False, header=False)
+
+
     def write_pinning_file(self, folder): # pylint: disable=unused-argument
         """Create the pinning.txt file from the pinning input array
 
-        We write the `pinning.txt` in this format (number of pinned sites, then i, da, db, dc, Sx, Sy, Sz):
+        We write the `pinning.txt` in this format (i, da, db, dc, Sx, Sy, Sz):
           0  0 0 0  1.0 0.0 0.0
           0  1 0 0  0.0 1.0 0.0
           0  0 1 0  0.0 0.0 1.0
