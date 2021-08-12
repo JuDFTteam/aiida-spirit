@@ -14,8 +14,8 @@ def init_spinview(vfr_frame_id=''):
 
     Needs to be called before the show_spins function can set the spins
     :param vfr_frame_id: a string that controls if multiple windows
-        should be openend. Use the same string in show_spins to update this.
-        This is not fully implemented yet and does not work in this version.
+    should be openend. Use the same string in show_spins to update this.
+    This is not fully implemented yet and does not work in this version.
     """
 
     # initialize vfrendering HTML object
