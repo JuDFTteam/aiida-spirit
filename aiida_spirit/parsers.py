@@ -40,7 +40,7 @@ class SpiritParser(Parser):
         :returns: an exit code, if parsing fails (or nothing if parsing succeeds)
         """
 
-        # Check that folder content is as expected
+        # Check that folder content is as expected and needed for parsing
         files_retrieved = self.retrieved.list_object_names()
         files_expected = _RETLIST + [
             '_scheduler-stdout.txt', '_scheduler-stderr.txt'
@@ -56,6 +56,12 @@ class SpiritParser(Parser):
         self.out('output_parameters', output_node)
         self.out('magnetization', mag)
         self.out('energies', energ)
+
+        # check consistency of spirit_version_info with the inputs
+        if 'pinning' in self.node.inputs:
+            version_info = output_node['spirit_version_info']
+            if not 'enabled' in version_info['Pinning']:
+                return self.exit_codes.ERROR_SPIRIT_CODE_INCOMPATIBLE
 
         return ExitCode(0)
 
@@ -148,5 +154,19 @@ def parse_outfile(txt):
     if itmp >= 0:
         tmp = txt[itmp].split()
         out_dict['solver'] = tmp[-1]
+
+    # parse information on the spirit executable (i.e. check parallelization and enabled features)
+    spirit_version_info = {}
+    for key in [
+            'Version', 'Revision', 'OpenMP', 'CUDA', 'std::thread', 'Defects',
+            'Pinning', 'scalar type'
+    ]:
+        itmp = search_string(key, txt)
+        if itmp >= 0:
+            found_str = txt[itmp].replace('==========', '').replace('  ', '')
+            if found_str[0] == ' ':
+                found_str = found_str[1:-1]
+            spirit_version_info[key] = found_str
+    out_dict['spirit_version_info'] = spirit_version_info
 
     return out_dict

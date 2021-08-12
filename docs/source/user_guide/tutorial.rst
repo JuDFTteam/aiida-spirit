@@ -99,6 +99,49 @@ we may want to ouput some results. Spirit provides the output of the calculation
 
 This example can be used as a starting point to calculate LLG simulations for different structures and using different parameters. All is needed is to modify the inputs according to the system we want to simulate.
 
+
+Special run modes of Spirit
++++++++++++++++++++++++++++
+
+OpenMP parallelization
+----------------------
+
+The Spirit code supports OpenMP parallelization if it was compiled properly. In AiiDA-Spirit this can then be used via the ``metadata.options`` input to a ``SpiritCalculation`` process::
+
+    builder.code = Code.get_from_string('spirit@some-computer')
+    builder.metadata.options = {
+        'withmpi': False, # Spirit does not support MPI
+        'resources': {'num_machines': 1, 'tot_num_mpiprocs': 1}, # single MPI process
+        'queue_name': 'my-queue-name',  # select a partition
+        'max_wallclock_seconds': 3600, # set the max runtime (here: 1 h)
+        'custom_scheduler_commands': 'export OMP_NUM_THREADS=12' # control the number of OpenMP threads
+    }
+
+Pinning
+-------
+
+AiiDA-Spirit also support special modes of the Spirit code like pinning of certain spins. Pinning is set using the ``pinning`` ArrayData input to the ``SpiritCalculation``::
+
+    pinning = ArrayData()
+    pinning.set_array('pinning', np.array([
+        # the columns need to be (i, da, db, dc, Sx, Sy, Sz)
+        [0, 0, 0, 0, 1, 0, 0],
+        [0, 1, 0, 0, 0, 1, 0],
+        [0, 2, 0, 0, 0, 0, 1],
+        [0, 3, 0, 0, 1, 1, 1], # the direction is automatically normalized
+    ]))
+    builder = CalculationFactory('spirit').get_builder()
+    builder.pinning = pinning
+
+
+**Attention:** Pinning needs a special compilation mode of the Spirit code. See https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html#pinning-a-name-pinning-a for details.
+
+Defects
+-------
+
+Not implemented yet.
+
+
 Plotting
 ++++++++
 

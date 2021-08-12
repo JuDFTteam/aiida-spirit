@@ -51,7 +51,7 @@ export PATH
 
 ## License
 
-MIT
+The AiiDA-Spirit code is under the [MIT license](LICENSE).
 
 ## Contact
 

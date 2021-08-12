@@ -65,17 +65,32 @@ class SpiritCalculation(CalcJob):
         spec.input('parameters', valid_type=Dict, required=False,
                    validator=validate_params,
                    help="""Dict node that allows to control the input parameters for spirit
-                        (see https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html).""")
+                        (see https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html).
+                        """)
         spec.input('run_options', valid_type=Dict, required=False,
                    default=lambda: Dict(dict={'simulation_method': 'LLG',
                                               'solver': 'Depondt',
+                                              'configuration': {},
                                              }),
                    help="""Dict node that allows to control the spirit run
-                        (e.g. simulation_method=LLG, solver=Depondt).""")
+                        (e.g. simulation_method=LLG, solver=Depondt).
+                        The configuration input specifies the input configuration
+                        (the default is to start from a random configuration,
+                        plus_z is also possible to start from all spins pointing in +z).
+                        """)
         spec.input('structure', valid_type=StructureData, required=True,
                    help='Use a node that specifies the input crystal structure')
         spec.input('jij_data', valid_type=ArrayData, required=True,
                    help='Use a node that specifies the full list of pairwise interactions')
+        spec.input('pinning', valid_type=ArrayData, required=False,
+                   help="""Use a node that specifies the full pinning information for all spins
+                        in the spirit supercell that should be pinned (i.e. take into account
+                        the n_basis_cells input from the parameters input node. This is an
+                        ArrayData object which should have the array called pinning which has
+                        the columns (i, da, db, dc, Sx, Sy, Sz).
+                        See https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html#pinning-a-name-pinning-a
+                        for more information on pinning in spirit.
+                        """)
         # define output nodes
         spec.output('output_parameters', valid_type=Dict, required=True,
                     help='Parsed values from the spirit stdout, stored as Dict for quick access.')
@@ -85,6 +100,8 @@ class SpiritCalculation(CalcJob):
                     help='energy convergence')
         # define exit codes that are used to terminate the SpiritCalculation
         spec.exit_code(100, 'ERROR_MISSING_OUTPUT_FILES', message='Calculation did not produce all expected output files.')
+        spec.exit_code(101, 'ERROR_SPIRIT_CODE_INCOMPATIBLE',
+                       message='The Spirit Code does not support a feature that is needed (e.g. pinning).')
 
 
     def prepare_for_submission(self, folder):
@@ -99,6 +116,11 @@ class SpiritCalculation(CalcJob):
         # CREATE .cfg FILE FROM DICTIONARY OF SETTINGS/PARAMETERS
         # from the dictionary given by the AiiDA node, the input.cfg file is created
         self.write_input_cfg(folder)
+
+        ##############################################
+        # CREATE "pinning.txt" file if needed
+        if 'pinning' in self.inputs:
+            self.write_pinning_file(folder)
 
         ##############################################
         # CREATE "couplings.txt" FILE FROM Jij
@@ -119,9 +141,14 @@ class SpiritCalculation(CalcJob):
         # Prepare a `CalcInfo` to be returned to the engine
         calcinfo = datastructures.CalcInfo()
         calcinfo.codes_info = [codeinfo]
+
         # this should be a list of the filenames we expect when spirit ran
         # i.e. the files we specify here will be copied back to the file repository
-        calcinfo.retrieve_list = _RETLIST
+        retlist = _RETLIST
+        if 'pinning' in self.inputs:
+            # also retreive the pinning file
+            retlist += ['pinning.txt']
+        calcinfo.retrieve_list = retlist
 
         return calcinfo
 
@@ -170,9 +197,43 @@ class SpiritCalculation(CalcJob):
                         geometry_string = _get_geometry(structure)
                         input_file[-1] = geometry_string
 
+        if 'pinning' in self.inputs:
+            # put `pinned_from_file pinning.txt` into the input config to read the pinning info in the spirit run
+            pinning_info = '\n\n# read pinning of spins from file\n'
+            pinning_info += 'pinned_from_file pinning.txt\n'
+            input_file.append(pinning_info)
+
+
         # write new contents to a new file, which will be used for the calculations
         with folder.open(_INPUT_CFG, 'w') as f_created:
             f_created.writelines(input_file)
+
+
+    def write_pinning_file(self, folder): # pylint: disable=unused-argument
+        """Create the pinning.txt file from the pinning input array
+
+        We write the `pinning.txt` in this format (number of pinned sites, then i, da, db, dc, Sx, Sy, Sz):
+          0  0 0 0  1.0 0.0 0.0
+          0  1 0 0  0.0 1.0 0.0
+          0  0 1 0  0.0 0.0 1.0
+        """
+        # get pinning array from the input node
+        pinning = self.inputs.pinning.get_array('pinning')
+
+        # convert to dataframe for easier writeout
+        pinning_df = DataFrame(pinning, columns=['i', 'da', 'db', 'dc', 'Sx', 'Sy', 'Sz'])
+        pinning_df = pinning_df.astype({'i':'int64', 'da':'int64', 'db':'int64', 'dc':'int64',
+                                        'Sx':'float64', 'Sy':'float64', 'Sz':'float64'})
+
+        # make sure the pinning direction is normalized
+        norm = np.sqrt(pinning_df['Sx']**2 + pinning_df['Sy']**2 + pinning_df['Sz']**2)
+        pinning_df['Sx'] /= norm
+        pinning_df['Sy'] /= norm
+        pinning_df['Sz'] /= norm
+
+        # Write the pinning file in csv format that spirit can understand
+        with folder.open('pinning.txt', 'w') as f:
+            pinning_df.to_csv(f, sep='\t', index=False, header=False)
 
 
     def write_couplings_file(self, folder): # pylint: disable=unused-argument
@@ -191,7 +252,7 @@ class SpiritCalculation(CalcJob):
             # Dx, Dy, Dz are only used to get direction
             jd = np.zeros((len(jij_expanded), 10))
             jd[:, :6] = jij_expanded[:, :6]
-            jd[:, 6] = np.sqrt(np.sum(jij_expanded[:, 6:9]**2, axis=1))
+            jd[:, 6] = np.linalg.norm(jij_expanded[:, 6:9], axis=1)
             jd[:, 7:10] = jij_expanded[:, 6:9]
             jijs_df = DataFrame(jd, columns=['i', 'j', 'da', 'db', 'dc', 'Jij', 'Dij', 'Dijx', 'Dijy', 'Dijz'])
             jijs_df['Dijx'] /= jijs_df['Dij']
