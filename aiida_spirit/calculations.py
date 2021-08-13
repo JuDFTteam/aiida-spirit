@@ -248,7 +248,7 @@ class SpiritCalculation(CalcJob):
             defects_info += '\n\n# Disorder type: iatom  atom_type  mu_s  concentration\n'
             defects_info += f'atom_types {len(set(atom_types[:,0]))}\n'
             for itype in atom_types:
-                defects_info += f'{itype[0]:i} {itype[1]:i} {itype[2]:f} {itype[3]:f}\n'
+                defects_info += f'{int(itype[0])} {int(itype[1])} {itype[2]:f} {itype[3]:f}\n'
 
         return defects_info
 

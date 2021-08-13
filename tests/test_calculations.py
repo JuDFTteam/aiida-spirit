@@ -5,7 +5,7 @@
 import os
 import numpy as np
 from aiida.plugins import CalculationFactory
-from aiida.orm import Dict
+from aiida.orm import StructureData, Dict, ArrayData
 from aiida.engine import run, run_get_node
 from aiida_spirit.tools.helpers import prepare_test_inputs
 
@@ -50,6 +50,93 @@ def test_spirit_calc_dry_run(spirit_code):
     print(result)
 
     assert result is not None
+
+
+def test_spirit_dmi_pinning_defects_dry_run(spirit_code):
+    """Test running a calculation
+    note this does only a dry run to check if the calculation plugin works"""
+
+    inputs = {'metadata': {}}
+    # test structure
+    structure = StructureData(cell=[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    structure.append_atom(position = [0., 0., 0.], symbols='Fe')
+    inputs['structure'] = structure
+    # test jijs with DMI vectors
+    jijs = np.array([
+        [0, 0,  1,  0,  0, 10.0, 6.0, 0.0, 0.0],
+        [0, 0,  0,  1,  0, 10.0, 0.0, 6.0, 0.0],
+        [0, 0,  0,  0,  1, 10.0, 0.0, 0.0, 6.0],
+    ])
+    jij_data = ArrayData()
+    jij_data.set_array('Jij_expanded', jijs)
+    inputs['jij_data'] = jij_data
+    # input parameters
+    inputs['parameters'] = Dict(dict={
+        ### Hamiltonian
+        # impurity spin moments in mu_Bohr
+        'mu_s': [2.2], # list of spin moments, needed to apply an external field
+        # Spirit supercell
+        'n_basis_cells': [10, 10, 10],
+        # external magnetic field in T (point in +z direction)
+        'external_field_magnitude': 0.5,
+        'external_field_normal': [0.0, 0.0, 1.0],
+        # single-ion anisotropy in meV
+        'anisotropy_magnitude': 1.,
+        'anisotropy_normal': [0.0, 0.0, 1.0],
+        ### LLG settings
+        'llg_n_iterations': 50000,
+        'llg_n_iterations_log': 1000,
+        'llg_temperature': 4,  # temperature noise (K)
+        'llg_dt':  1.0E-3, # LLG time step (ps)
+        'llg_force_convergence': 1e-7,
+    })
+    # run options
+    inputs['run_options'] = Dict(dict={
+        'simulation_method': 'llg',
+        'solver': 'depondt',
+        'configuration': {'plus_z': True},
+    })
+    # pinning input
+    pinning = ArrayData()
+    pinning.set_array('pinning',
+                      np.array([
+                          [0,8,0,0, 0, 0, 1],
+                          [0,9,0,0, 0, 0, 1],
+                          ])
+                      )
+    inputs['pinning'] = pinning
+    # defects input
+    defects = ArrayData()
+    defects.set_array('defects',
+                      np.array([
+                          # i, da, db, dc, itype
+                          [0,0,0,0,-1],
+                          [0,1,0,0, 1],
+                          ])
+                      )
+    defects.set_array('atom_types',
+                       np.array([
+                           # i, itype, mu_s, concentration,
+                           [0, 0, 2.2, 0.8],
+                           [0, 1, 1.1, 0.2],
+                           ])
+                       )
+    inputs['defects'] = defects
+    # code and computer options
+    inputs['code'] = spirit_code
+    inputs['metadata']['options'] = {
+        # 5 mins max runtime
+        'max_wallclock_seconds': 300
+    }
+    inputs['metadata']['dry_run'] = True
+
+
+    result, node = run_get_node(CalculationFactory('spirit'), **inputs)
+    print(result, node)
+
+    assert result is not None
+    assert 'pinning.txt' in node.get_retrieve_list()
+    assert 'defects.txt' in node.get_retrieve_list()
 
 
 def test_spirit_calc(spirit_code):
