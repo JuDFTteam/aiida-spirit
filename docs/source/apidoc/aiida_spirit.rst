@@ -33,16 +33,6 @@ aiida\_spirit.cli module
    :undoc-members:
    :show-inheritance:
 
-aiida\_spirit.helpers module
-----------------------------
-
-.. automodule:: aiida_spirit.helpers
-   :members:
-   :special-members:
-   :private-members:
-   :undoc-members:
-   :show-inheritance:
-
 aiida\_spirit.parsers module
 ----------------------------
 

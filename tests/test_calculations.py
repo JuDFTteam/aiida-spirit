@@ -7,7 +7,7 @@ import numpy as np
 from aiida.plugins import CalculationFactory
 from aiida.orm import Dict
 from aiida.engine import run, run_get_node
-from aiida_spirit.helpers import prepare_test_inputs
+from aiida_spirit.tools.helpers import prepare_test_inputs
 
 from . import TEST_DIR
 

@@ -24,6 +24,16 @@ aiida\_spirit.tools.get\_from\_remote module
    :undoc-members:
    :show-inheritance:
 
+aiida\_spirit.tools.helpers module
+----------------------------------
+
+.. automodule:: aiida_spirit.tools.helpers
+   :members:
+   :special-members:
+   :private-members:
+   :undoc-members:
+   :show-inheritance:
+
 aiida\_spirit.tools.plotting module
 -----------------------------------
 

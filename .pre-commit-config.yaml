@@ -27,11 +27,11 @@ repos:
     types: [file, python]
     name: pylint
     description: "This hook runs the pylint static code analyzer"
-    exclude: &exclude_files >
-      (?x)^(
-          docs/.*|
-          examples/*|
-      )$
+    exclude: |
+      (?x)(
+          ^docs/|
+          ^examples/
+      )
     entry: pylint
 
   - id: version-number

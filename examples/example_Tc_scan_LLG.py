@@ -12,8 +12,8 @@ import numpy as np
 from aiida import cmdline, engine
 from aiida.orm import Dict
 from aiida.plugins import CalculationFactory
-from aiida_spirit import helpers
-from aiida_spirit.helpers import prepare_test_inputs
+from aiida_spirit.tools import helpers
+from aiida_spirit.tools.helpers import prepare_test_inputs
 
 INPUT_DIR = path.join(path.dirname(path.realpath(__file__)), 'input_files')
 OUTPUT_DIR = path.join(path.dirname(path.realpath(__file__)),
