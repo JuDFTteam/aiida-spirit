@@ -19,13 +19,7 @@ def init_spinview(vfr_frame_id=''):
     """
 
     # initialize vfrendering HTML object
-    #view = setup(vfr_frame_id)
-    view = setup()
-
-    if vfr_frame_id != '':
-        raise ValueError(
-            'You try to use the vfr_frame_id input but this is not fully implemented yet'
-        )
+    view = setup(vfr_frame_id)
 
     return view
 
@@ -64,15 +58,17 @@ def _plot_spins_vfr(  # pylint: disable=too-many-arguments
     # put mid-point in the center to have origin for rotation in the center
     positions -= np.sum(positions, axis=0) / len(positions)
 
-    if vfr_frame_id != '':
-        raise ValueError(
-            'You try to use the vfr_frame_id input but this is not fully implemented yet'
-        )
-
     # update the vfrendering view with the new positions and directions
     # we use rectilinear=False here to be able to work with any structure
-    #update(positions, directions, rectilinear=False, vfr_frame_id=vfr_frame_id)
-    update(positions, directions, rectilinear=False)
+    try:
+        update(positions,
+               directions,
+               rectilinear=False,
+               vfr_frame_id=vfr_frame_id)
+    except KeyError:
+        print(
+            f'\nERROR: Did not find the vfr_frame_id "{vfr_frame_id}". Did you specify the same as in init_spinview?'
+        )
 
 
 def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-arguments

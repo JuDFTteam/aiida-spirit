@@ -62,6 +62,10 @@ class SpiritParser(Parser):
             version_info = output_node['spirit_version_info']
             if not 'enabled' in version_info['Pinning']:
                 return self.exit_codes.ERROR_SPIRIT_CODE_INCOMPATIBLE
+        if 'defects' in self.node.inputs:
+            version_info = output_node['spirit_version_info']
+            if not 'enabled' in version_info['Defects']:
+                return self.exit_codes.ERROR_SPIRIT_CODE_INCOMPATIBLE
 
         return ExitCode(0)
 
