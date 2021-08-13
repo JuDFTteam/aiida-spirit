@@ -18,6 +18,7 @@ repos:
   - id: yapf
     name: yapf
     args: ["-i"]
+    exclude: vfr_notebook_view/
 
 - repo: local
   hooks:
