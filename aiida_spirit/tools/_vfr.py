@@ -30,7 +30,7 @@ def setup(vfr_frame_id=''):
     </div>
     <script>
         window.addEventListener("message", (event) => {
-          if (event.origin !== "https://florianrhiem.iffgit.fz-juelich.de") {
+          if (event.origin !== "https://judftteam.github.io") {
             return;
           }
           if (event.data['frame_id'] !== "''' + vfr_frame_id + '''") {
@@ -56,7 +56,7 @@ def setup(vfr_frame_id=''):
         }
         var frame_wrapper = document.getElementById("''' + vfr_frame_id +
                 '''");
-        var iframe_url = "https://florianrhiem.iffgit.fz-juelich.de/VFRendering/notebook_view/?origin=" + window.location.origin + "&frame_id='''
+        var iframe_url = "https://judftteam.github.io/aiida-spirit/vfr_notebook_view/?origin=" + window.location.origin + "&frame_id='''
                 + vfr_frame_id + '''";
         frame_wrapper.innerHTML = '<iframe src="' + iframe_url + '" style="width: 100%; height:600px; border: 1px solid black;"></iframe>';
     </script>
@@ -82,6 +82,6 @@ def update(positions, directions, rectilinear=True, vfr_frame_id=''):
         }
     }
     display(Javascript(f'''
-    window.vfr_iframe['{vfr_frame_id}'].postMessage({json.dumps(message)}, "https://florianrhiem.iffgit.fz-juelich.de");
+    window.vfr_iframe['{vfr_frame_id}'].postMessage({json.dumps(message)}, "https://judftteam.github.io");
     '''),
             clear=True)
