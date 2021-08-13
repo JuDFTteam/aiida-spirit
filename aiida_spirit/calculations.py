@@ -160,7 +160,7 @@ class SpiritCalculation(CalcJob):
 
         # this should be a list of the filenames we expect when spirit ran
         # i.e. the files we specify here will be copied back to the file repository
-        retlist = _RETLIST
+        retlist = _RETLIST.copy()
         if 'pinning' in self.inputs:
             # also retreive the pinning file
             retlist += ['pinning.txt']

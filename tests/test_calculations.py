@@ -158,6 +158,10 @@ def test_spirit_calc(spirit_code):
 
     result, node = run_get_node(CalculationFactory('spirit'), **inputs)
     print(result, node)
+    print(node.exit_status, node.process_state)
+    print(node.attributes)
+    print(node.outputs.retrieved.list_object_names())
+    print(inputs)
     assert node.is_finished_ok
 
     # check consistency of the output files
