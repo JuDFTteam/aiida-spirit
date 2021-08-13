@@ -1,5 +1,6 @@
 # Install pre-commit hooks via:
 # pre-commit install
+repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v3.4.0
   hooks:
@@ -17,6 +18,7 @@
   - id: yapf
     name: yapf
     args: ["-i"]
+    exclude: vfr_notebook_view/
 
 - repo: local
   hooks:
@@ -25,10 +27,11 @@
     types: [file, python]
     name: pylint
     description: "This hook runs the pylint static code analyzer"
-    exclude: &exclude_files >
-      (?x)^(
-          docs/.*|
-      )$
+    exclude: |
+      (?x)(
+          ^docs/|
+          ^examples/
+      )
     entry: pylint
 
   - id: version-number

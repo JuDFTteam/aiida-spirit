@@ -1,5 +1,5 @@
 [![Build Status](https://github.com/JuDFTteam/aiida-spirit/workflows/ci/badge.svg?branch=master)](https://github.com/JuDFTteam/aiida-spirit/actions)
-[![Coverage Status](https://coveralls.io/repos/github/JuDFTteam/aiida-spirit/badge.svg?branch=master)](https://coveralls.io/github/JuDFTteam/aiida-spirit?branch=master)
+[![Coverage Status](https://codecov.io/gh/JuDFTteam/aiida-spirit/branch/main/graph/badge.svg?token=F7ISM4558S)](https://codecov.io/gh/JuDFTteam/aiida-spirit)
 [![Docs status](https://readthedocs.org/projects/aiida-spirit/badge)](http://aiida-spirit.readthedocs.io/)
 [![PyPI version](https://badge.fury.io/py/aiida-spirit.svg)](https://badge.fury.io/py/aiida-spirit)
 
@@ -21,7 +21,7 @@ verdi plugin list aiida.calculations  # should now show your calclulation plugin
 
 Here goes a complete example of how to submit a test calculation using this plugin.
 
-A quick demo of how to submit a calculation:
+A quick demo of how to submit a calculation (the spirit python API needs to be installed for this to work: `pip install spirit`):
 ```shell
 verdi daemon start     # make sure the daemon is running
 cd examples
@@ -51,7 +51,7 @@ export PATH
 
 ## License
 
-MIT
+The AiiDA-Spirit code is under the [MIT license](LICENSE).
 
 ## Contact
 

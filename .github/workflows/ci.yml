@@ -52,6 +52,11 @@ jobs:
         PYTEST_ADDOPTS: "--durations=0"
       run: py.test --cov aiida_spirit --cov-append .
 
+    - name: Upload code coverage
+      run: |
+        pip install codecov
+        codecov
+
   docs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
