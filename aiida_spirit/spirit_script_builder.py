@@ -116,9 +116,9 @@ class SpiritScriptBuilder(PythonScriptBuilder):
         """Format a list as a string of positional arguments"""
         return "".join( [", {}".format(l) for l in list] )
 
-    def _spirit_call(self, module, function_name, p_state="p_state", *args, **kwargs):
+    def _spirit_call(self, module, function_name, *args, **kwargs):
         """A generic call to any of the spirit api functions."""
-        self += "{}.{}({}{}{})".format(module, function_name, p_state, self.list_to_arg_string(args), self._dict_to_arg_string(kwargs))
+        self += "{}.{}(p_state{}{})".format(module, function_name, self.list_to_arg_string(args), self._dict_to_arg_string(kwargs))
 
     def import_modules(self, *args):
         """Imports the modules given in *args. If no *args are given, imports all modules in the module dict"""
