@@ -370,46 +370,19 @@ class SpiritCalculation(CalcJob):
             self.write_mc_script(folder) # A bit unclean but lets separate the code somewhat
             return
 
-        # header for run_spirit.py
-        header = """import os
-### Import Spirit modules
-from spirit import state
-from spirit import configuration
-from spirit import simulation
-
-cfgfile = "input_created.cfg"
-quiet = False
-
-with state.State(cfgfile, quiet) as p_state:"""
-
-        # collect body of run_spirit.py script
-        body = '\n'
-
-        # set simulation (LLG, MC, ...)
-        # - use method.upper to have case-insensitive input
-        # - remember to end each line with '\n'
-        if method.upper() == 'LLG':
-            body += '    method = simulation.METHOD_LLG\n'
-        # here we need to also allow other methods (HTST,GNEB,...)
-
-        # set solver (DEPONDT, ...)
-        if solver.upper() == 'DEPONDT':
-            body += '    solver = simulation.SOLVER_DEPONDT # Velocity projection minimiser\n'
-        # here we also need to be able to set the other solvers
-
-        # set configuration (initialize spins in (plus z, ...)
-        if 'plus_z' in config and config.get('plus_z', False):
-            body += '    configuration.plus_z(p_state) # start from all spins pointing in +z\n'
-        # here we should add additional configurations
-
-        # finalize body with starting the spirit simulation
-        body += '    # now run the simulation\n    simulation.start(p_state, method, solver)\n'
+        script = SpiritScriptBuilder()
+        script.import_modules()
+        with script.state_block():
+            if "plus_z" in config and config.get("plus_z", False):
+                script.configuration("plus_z")
+            else:
+                script.configuration("random")
+            script.start_simulation(method, solver)
 
         # write run_spirit.py to the folder
         with folder.open(_RUN_SPIRIT, 'w') as f:
-            txt = header + body
+            txt = script.body
             f.write(txt)
-
 
     def write_mc_script(self, folder):
         script = SpiritScriptBuilder()
@@ -430,11 +403,12 @@ with state.State(cfgfile, quiet) as p_state:"""
         mc_configuration = run_opts["mc_configuration"]
 
         keys = ["n_thermalisation", "n_decorrelation", "n_samples", "n_temperatures", "T_start", "T_end"]
+
         for k in keys:
             script += "{:20} = {}".format(k, mc_configuration[k])
 
         script += """
-        sample_temperaturs = np.linspace(T_start, T_end, n_temperatures)
+        sample_temperaturs      = np.linspace(T_start, T_end, n_temperatures)
         energy_samples          = []
         magnetization_samples   = []
         susceptibility_samples  = []

@@ -1,4 +1,6 @@
 class PythonScriptBuilder(object):
+    """Helper class to build python scripts with correct indentation"""
+
     indentation = ""
     indentation_increment = 4*" "
 
@@ -21,7 +23,7 @@ class PythonScriptBuilder(object):
         return self.body
 
     def __iadd__(self, contents):
-        """Operator += appends to script body and respects indentation. Ignores leading empty lines.
+        """Operator += appends to script body and respects indentation. Ignores leading empty lines. Automatically appends '\n'.
            IMPORTANT: When appending multiline strings, make sure that the first non-empty line has a correct *relative* indentation to the rest of the lines.
            This is because the first non-empty line will be used to figure out how much leading whitespace to remove from the rest of the lines.
         """
@@ -42,6 +44,7 @@ class PythonScriptBuilder(object):
         return self
 
     def empty_line(self):
+        """Append an empty line to the script body"""
         self.body += "\n"
 
     def block(self, header):
@@ -60,52 +63,80 @@ class PythonScriptBuilder(object):
 
 
 class SpiritScriptBuilder(PythonScriptBuilder):
-    # Methods
-    LLG = "simulation.METHOD_LLG"
-    MC  = "simulation.METHOD_MC"
+    """Helper class to build pyton scripts for the spirit api"""
 
-    # Solvers
-    DEPONDT     = "simulation.SOLVER_DEPONDT"
-    HEUN        = "simulation.SOLVER_HEUN"
-    SIB         = "simulation.SOLVER_SIB"
-    RK4         = "simulation.SOLVER_RK4"
-    VP          = "simulation.SOLVER_VP"
-    VP_OSO      = "simulation.SOLVER_VP_OSO"
-    LBFGS_OSO   = "simulation.SOLVER_LBFGS_OSO"
-    LBFGS_ATLAS = "simulation.SOLVER_LBFGS_Atlas"
+    _method_dict = {
+        "llg" : "simulation.METHOD_LLG",
+        "mc"  : "simulation.METHOD_MC"
+    }
+
+    def method(self, key):
+        try:
+            return self._method_dict[key.lower()]
+        except KeyError:
+            raise ValueError("Invalid method!")
+
+    _solver_dict = {
+        "depondt" : "simulation.SOLVER_DEPONDT",
+        "heun"    : "simulation.SOLVER_HEUN",
+        "sib"     : "simulation.SOLVER_SIB",
+        "rk4"     : "simulation.SOLVER_SIB",
+        "vp"      : "simulation.SOLVER_VP",
+        "vp_oso"  : "simulation.SOLVER_VP_OSO",
+        "lbfgs_oso" : "simulation.SOLVER_LBFGS_OSO",
+        "lbfgs_atlas" : "simulation.SOLVER_LBFGS_Atlas"
+    }
+
+    def solver(self, key):
+        try:
+            return self._solver_dict[key.lower()]
+        except KeyError:
+            raise ValueError("Invalid solver!")
+
+    _module_dict = {
+        "configuration" : "configuration",
+        "simulation" : "simulation",
+        "state" : "state"
+    }
 
     # Modules
-    module_configuration = "configuration"
-    module_simulation    = "simulation"
-    module_state         = "state"
+    def module(self, key):
+        try:
+            return self._module_dict[key.lower()]
+        except KeyError:
+            raise ValueError("Invalid module!")
 
     @staticmethod
     def _dict_to_arg_string(dict):
+        """Format a dict as a string of keyword arguments"""
         return "".join( [", {} = {}".format(key, val) for key, val in dict.items()] )
 
     @staticmethod
     def list_to_arg_string(list):
+        """Format a list as a string of positional arguments"""
         return "".join( [", {}".format(l) for l in list] )
 
-    @staticmethod
-    def _dict_merge(base_dict, update_dict):
-        base_dict = update_dict.copy()   # start with keys and values of base_dict
-        base_dict.update(update_dict)    # modifies base_dict with keys and values of update_dict
-        return base_dict
-
     def _spirit_call(self, module, function_name, p_state="p_state", *args, **kwargs):
+        """A generic call to any of the spirit api functions."""
         self += "{}.{}({}{}{})".format(module, function_name, p_state, self.list_to_arg_string(args), self._dict_to_arg_string(kwargs))
 
     def import_modules(self, *args):
-        for a in args:
-            self += "from spirit import {}".format(a)
+        """Imports the modules given in *args. If no *args are given, imports all modules in the module dict"""
+        if len(args) > 0:
+            for a in args:
+                self += "from spirit import {}".format(a)
+        else:
+            for val in self._module_dict.values():
+                self += "from spirit import {}".format(val)
 
     def state_block(self, input_file="input_created.cfg"):
+        """Creates the state_block and thereby creates the p_state"""
         return self.block("with state.State(\"{}\") as p_state:".format(input_file))
 
     def configuration(self, fname, *args, **kwargs):
         """Sets one of the configuration api functions on of p_state"""
-        self._spirit_call(self.module_configuration, fname, *args, **kwargs)
+        self._spirit_call(self.module("configuration"), fname, *args, **kwargs)
 
-    def start_simulation(self, method, solver, **kwargs):
-        self._spirit_call(self.module_simulation, "start", method, solver, **kwargs)
+    def start_simulation(self, method, solver, *args, **kwargs):
+        """Start a simulation with a method and a solver."""
+        self._spirit_call(self.module("simulation"), "start", self.method(method), self.solver(solver), *args, **kwargs)
