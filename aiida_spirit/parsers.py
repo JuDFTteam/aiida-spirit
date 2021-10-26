@@ -93,6 +93,10 @@ class SpiritParser(Parser):
         with retrieved.open('spirit_Image-00_Spins-final.ovf') as _f:
             m_final = np.loadtxt(_f)
 
+        self.logger.info("Parsing MC data")
+        with retrieved.open('output_mc.txt') as _f:
+            output_mc = np.loadtxt(_f)
+
         # collect arrays in ArrayData
         mag = ArrayData()
         mag.set_array(
@@ -107,6 +111,12 @@ class SpiritParser(Parser):
         energies.set_array('energies', energ)
         energies.extras['description'] = {
             'energies': 'energy convergence',
+        }
+
+        output_mc = ArrayData()
+        output_mc.set_array('mc_data', output_mc)
+        output_mc.extras['description'] = {
+            '....'
         }
 
         return output_node, mag, energies

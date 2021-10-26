@@ -12,6 +12,7 @@ from aiida.engine import CalcJob
 from aiida.orm import Dict, StructureData, ArrayData
 from .data._formatting_info import _forbidden_keys
 from .data._type_check import verify_input_para  #, validate_input_dict
+from .spirit_script_builder import SpiritScriptBuilder
 
 # this is the template input config file which is read in and changed according to the inputs
 TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
@@ -108,6 +109,8 @@ class SpiritCalculation(CalcJob):
                     help='initial and final magnetization')
         spec.output('energies', valid_type=ArrayData, required=True,
                     help='energy convergence')
+        spec.output('monte_carlo_data', valid_type=ArrayData, required=False,
+                    help='sampled quantities from a monte carlo run')
 
         # define exit codes that are used to terminate the SpiritCalculation
         spec.exit_code(100, 'ERROR_MISSING_OUTPUT_FILES', message='Calculation did not produce all expected output files.')
@@ -352,10 +355,20 @@ class SpiritCalculation(CalcJob):
 
 
     def write_run_spirit(self, folder):
+
         """write the run_spirit.py script that controls the spirit python API."""
 
         # extract run options from input node
         run_opts = self.inputs.run_options.get_dict()
+
+        # now extract information from run_opts
+        method = run_opts.get('simulation_method')
+        solver = run_opts.get('solver')
+        config = run_opts.get('configuration', {})
+
+        if method.upper() == "MC":
+            self.write_mc_script(folder) # A bit unclean but lets separate the code somewhat
+            return
 
         # header for run_spirit.py
         header = """import os
@@ -368,11 +381,6 @@ cfgfile = "input_created.cfg"
 quiet = False
 
 with state.State(cfgfile, quiet) as p_state:"""
-
-        # now extract information from run_opts
-        method = run_opts.get('simulation_method')
-        solver = run_opts.get('solver')
-        config = run_opts.get('configuration', {})
 
         # collect body of run_spirit.py script
         body = '\n'
@@ -402,6 +410,107 @@ with state.State(cfgfile, quiet) as p_state:"""
             txt = header + body
             f.write(txt)
 
+
+    def write_mc_script(self, folder):
+        script = SpiritScriptBuilder()
+        script += """
+        import numpy as np
+        from spirit import state
+        from spirit import system
+        from spirit import simulation
+        from spirit import configuration
+        from spirit import parameters
+        from spirit import hamiltonian
+        from spirit import quantities
+        from spirit import geometry
+        from spirit import constants
+        """
+
+        run_opts = self.inputs.run_options.get_dict()
+        mc_configuration = run_opts["mc_configuration"]
+
+        keys = ["n_thermalisation", "n_decorrelation", "n_samples", "n_temperatures", "T_start", "T_end"]
+        for k in keys:
+            script += "{:20} = {}".format(k, mc_configuration[k])
+
+        script += """
+        sample_temperaturs = np.linspace(T_start, T_end, n_temperatures)
+        energy_samples          = []
+        magnetization_samples   = []
+        susceptibility_samples  = []
+        specific_heat_samples   = []
+        binder_cumulant_samples = []
+        """
+
+        with script.state_block():
+            script += "NOS = system.get_nos(p_state)"
+
+            # Loop over temperatures
+            with script.block("for iT, T in sample_temperaturs:s"):
+                script += "parameters.mc.set_temperature(p_state, T)"
+                script.configuration(run_opts["configuration"][0])
+                script += """
+                # Cumulative average variables
+                E  = 0
+                E2 = 0
+                M  = 0
+                M2 = 0
+                M4 = 0
+
+                # Thermalisation
+                parameters.mc.set_iterations(p_state, n_thermalisation, n_thermalisation) # We want n_thermalisation iterations and only a single log message
+
+                # Sampling at given temperature
+                parameters.mc.set_iterations(p_state, n_decorrelation*n_samples, n_decorrelation*n_samples) # We want n_decorrelation iterations and only a single log message
+                simulation.start(p_state, simulation.METHOD_MC, single_shot=True) # Start a single-shot MC simulation
+
+                for n in range(n_samples):
+                    # Run decorrelation
+                    for i_decorr in range(n_decorrelation):
+                        simulation.single_shot(p_state) # one MC iteration
+                    # Get energy
+                    E_local = system.get_energy(p_state) / NOS
+                    # Get magnetization
+                    M_local = np.array(quantities.get_magnetization(p_state))
+                    M_local_tot = np.linalg.norm(M_local)
+                    # Add to cumulative averages
+                    E   += E_local
+                    E2  += E_local**2
+                    M   += M_local_tot
+                    M2  += M_local_tot**2
+                    M4  += M_local_tot**4
+
+                # Make sure the MC simulation is not running anymore
+                simulation.stop(p_state)
+
+                # Average over samples
+                E  /= n_samples
+                E2 /= n_samples
+                M  /= n_samples
+                M2 /= n_samples
+                M4 /= n_samples
+
+                # Calculate observables
+                chi = (M2 - np.dot(M, M)) / (constants.k_B * T)
+                c_v = (E2 - E**2) / (constants.k_B * T**2)
+                cumulant = 1 - M4/(3 * M2**2)
+
+                energy_samples.append(E)
+                magnetization_samples.append(M)
+                susceptibility_samples.append(chi)
+                specific_heat_samples.append(c_v)
+                binder_cumulant_samples.append(cumulant)
+                """
+
+        script += """
+        with open("output_mc.txt", "w") as f:
+            for i, T in enumerate(sample_temperatures):
+                f.write( "\n" + str(T) + "     " + str(energy_samples[i]) + "     " + str(magnetization_samples[i]) + "     " + str(susceptibility_samples[i]) + "     " + str(specific_heat_samples[i]) + "     " + str(binder_cumulant_samples[i]) )
+        """
+
+        # write run_spirit.py to the folder
+        with folder.open(_RUN_SPIRIT, 'w') as f:
+            f.write(script.body)
 
 def _modify_line(my_string, new_value):
     """Gets a line and the new parameter value as inputs
