@@ -448,7 +448,7 @@ with state.State(cfgfile, quiet) as p_state:"""
             # Loop over temperatures
             with script.block("for iT, T in sample_temperaturs:s"):
                 script += "parameters.mc.set_temperature(p_state, T)"
-                script.configuration(run_opts["configuration"][0])
+                script.configuration("plus_z")
                 script += """
                 # Cumulative average variables
                 E  = 0
