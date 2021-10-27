@@ -119,8 +119,7 @@ class SpiritParser(Parser):
         _retrieved_dict = {
             "output_parameters" : output_node,
             "magnetization" : mag,
-            "energies" : energies,
-            "monte_carlo" : output_mc
+            "energies" : energies
         }
 
         # Only add mc if it is found
