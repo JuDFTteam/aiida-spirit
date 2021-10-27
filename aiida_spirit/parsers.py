@@ -69,6 +69,16 @@ class SpiritParser(Parser):
 
         return ExitCode(0)
 
+    def _retrieve_if_found(self, filename, *args, **kwargs):
+        """Retrieves a file and loads it with np.loadtxt. *args and **kwargs are passed to np.loadtxt. If the file is not found it returns None."""
+        retrieved = self.retrieved
+        if filename in retrieved.list_object_names():
+            with retrieved.open(filename, 'r')
+                return np.loadtxt(_f, *args, **kwargs)
+        else:
+            self.logger.info("{} not found!".format(filename))
+            return None
+
     def parse_retrieved(self):
         """Parse the output from the retrieved and create aiida nodes"""
 
@@ -84,50 +94,59 @@ class SpiritParser(Parser):
 
         # parse output files
         self.logger.info('Parsing energy archive')
-        with retrieved.open('spirit_Image-00_Energy-archive.txt') as _f:
-            energ = np.loadtxt(_f, skiprows=1)
+        energ  = self._retrieve_if_found('spirit_Image-00_Energy-archive.txt', skiprows=1)
+
         self.logger.info('Parsing initial magnetization')
-        with retrieved.open('spirit_Image-00_Spins-initial.ovf') as _f:
-            m_init = np.loadtxt(_f)
+        m_init = self._retrieve_if_found('spirit_Image-00_Spins-initial.ovf')
+
         self.logger.info('Parsing final magnetization')
-        with retrieved.open('spirit_Image-00_Spins-final.ovf') as _f:
-            m_final = np.loadtxt(_f)
+        m_final = self._retrieve_if_found('spirit_Image-00_Spins-final.ovf')
 
-        if 'output_mc.txt' in retrieved.list_object_names():
-            with retrieved.open('output_mc.txt') as _f:
-                _output_mc = np.loadtxt(_f)
-        else:
-            _output_mc = None
-
-        # collect arrays in ArrayData
-        mag = ArrayData()
-        mag.set_array(
-            'initial',
-            np.nan_to_num(m_init))  # nan_to_num is needed with defects
-        mag.set_array('final', np.nan_to_num(m_final))
-        mag.extras['description'] = {
-            'initial': 'initial directions of the magnetization vectors',
-            'final': 'final directions of the magnetization vectors',
-        }
-        energies = ArrayData()
-        energies.set_array('energies', energ)
-        energies.extras['description'] = {
-            'energies': 'energy convergence',
-        }
+        self.logger.info('Parsing MC output')
+        out_mc = self._retrieve_if_found('output_mc.txt')
 
         # Write dictionary of retrieved quantities
         _retrieved_dict = {
-            "output_parameters" : output_node,
-            "magnetization" : mag,
-            "energies" : energies
+            "output_parameters" : output_node
         }
 
+        # collect arrays in ArrayData
+        if m_init and m_final:
+            mag = ArrayData()
+            mag.set_array(
+                'initial',
+                np.nan_to_num(m_init))  # nan_to_num is needed with defects
+            mag.set_array('final', np.nan_to_num(m_final))
+            mag.extras['description'] = {
+                'initial': 'initial directions of the magnetization vectors',
+                'final': 'final directions of the magnetization vectors',
+            }
+            _retrieved_dict.update( {"magnetization" : mag} )
+
+        if energ:
+            energies = ArrayData()
+            energies.set_array('energies', energ)
+            energies.extras['description'] = {
+                'energies': 'energy convergence',
+            }
+            _retrieved_dict.update( {"energies" : energies} )
+
         # Only add mc if it is found
-        if _output_mc:
+        if out_mc:
             output_mc = ArrayData()
-            output_mc.set_array('mc_data', _output_mc)
+
+            # Associante the columns of out_mc with individual arrays
+            array_names = ["temperature", "energy", "magnetization", "susceptibility", "specific_heat", "binder_cumulant"]
+            for i,name in enumerate(array_names):
+                output_mc.set_array(name, out_mc[:,i])
+
             output_mc.extras['description'] = {
-                '...'
+                'temperature' : 'The temperature at which the sampling was performed',
+                'energy' : 'The average energy at the sampled temperature',
+                'magnetization': 'The average spin direction at the sample temperature',
+                'susceptibility' : 'The susceptibility at the sampled temperature',
+                'specific_heat' : 'The specific heat at the sampled temperature',
+                'binder_cumulant' : 'The binder_cumulant at the sampled temperature',
             }
             _retrieved_dict.update( {"monte_carlo" : output_mc} )
 

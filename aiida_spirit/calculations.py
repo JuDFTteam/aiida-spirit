@@ -105,11 +105,11 @@ class SpiritCalculation(CalcJob):
         # define output nodes
         spec.output('output_parameters', valid_type=Dict, required=True,
                     help='Parsed values from the spirit stdout, stored as Dict for quick access.')
-        spec.output('magnetization', valid_type=ArrayData, required=True,
+        spec.output('magnetization', valid_type=ArrayData, required=False,
                     help='initial and final magnetization')
-        spec.output('energies', valid_type=ArrayData, required=True,
+        spec.output('energies', valid_type=ArrayData, required=False,
                     help='energy convergence')
-        spec.output('monte_carlo_data', valid_type=ArrayData, required=False,
+        spec.output('monte_carlo', valid_type=ArrayData, required=False,
                     help='sampled quantities from a monte carlo run')
 
         # define exit codes that are used to terminate the SpiritCalculation
