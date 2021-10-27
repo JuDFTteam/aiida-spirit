@@ -96,7 +96,7 @@ class SpiritParser(Parser):
         # TODO: dont really know how to handle this better right now.
         # would be cleaner to only try to parse this after an mc calculation, 
         # but I dont really know how to check the run_opts after the fact
-        output_mc = None
+        output_mc = np.array([])
         self.logger.info("Parsing MC data")
         try:
             with retrieved.open('output_mc.txt') as _f:
