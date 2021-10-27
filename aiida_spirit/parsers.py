@@ -52,10 +52,10 @@ class SpiritParser(Parser):
             return self.exit_codes.ERROR_MISSING_OUTPUT_FILES
 
         # parse information from output file (number of iterations, convergence info, ...)
-        output_node, mag, energ = self.parse_retrieved()
-        self.out('output_parameters', output_node)
-        self.out('magnetization', mag)
-        self.out('energies', energ)
+        retrieved_dict  = self.parse_retrieved()
+
+        for key, value in retrieved_dict.items():
+            self.out(key, value)
 
         # check consistency of spirit_version_info with the inputs
         if 'pinning' in self.node.inputs:
@@ -93,16 +93,11 @@ class SpiritParser(Parser):
         with retrieved.open('spirit_Image-00_Spins-final.ovf') as _f:
             m_final = np.loadtxt(_f)
 
-        # TODO: dont really know how to handle this better right now.
-        # would be cleaner to only try to parse this after an mc calculation, 
-        # but I dont really know how to check the run_opts after the fact
-        _output_mc = np.array([])
-        self.logger.info("Parsing MC data")
-        try:
+        if 'output_mc.txt' in retrieved.list_object_names():
             with retrieved.open('output_mc.txt') as _f:
                 _output_mc = np.loadtxt(_f)
-        except FileNotFoundError: # Catch file not found, since output_mc only gets written after an mc calculation
-            self.logger.info("MC data not found")
+        else:
+            _output_mc = None
 
         # collect arrays in ArrayData
         mag = ArrayData()
@@ -120,14 +115,24 @@ class SpiritParser(Parser):
             'energies': 'energy convergence',
         }
 
-        output_mc = ArrayData()
-        output_mc.set_array('mc_data', _output_mc)
-        output_mc.extras['description'] = {
-            '...'
+        # Write dictionary of retrieved quantities
+        _retrieved_dict = {
+            "output_parameters" : output_node,
+            "magnetization" : mag,
+            "energies" : energies,
+            "monte_carlo" : output_mc
         }
 
-        return output_node, mag, energies, output_mc
+        # Only add mc if it is found
+        if _output_mc:
+            output_mc = ArrayData()
+            output_mc.set_array('mc_data', _output_mc)
+            output_mc.extras['description'] = {
+                '...'
+            }
+            _retrieved_dict.update( {"monte_carlo" : output_mc} )
 
+        return _retrieved_dict
 
 def parse_outfile(txt):
     """parse the spirit output file"""
