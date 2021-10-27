@@ -408,7 +408,7 @@ class SpiritCalculation(CalcJob):
             script += "{:20} = {}".format(k, mc_configuration[k])
 
         script += """
-        sample_temperaturs      = np.linspace(T_start, T_end, n_temperatures)
+        sample_temperatures     = np.linspace(T_start, T_end, n_temperatures)
         energy_samples          = []
         magnetization_samples   = []
         susceptibility_samples  = []
@@ -420,7 +420,7 @@ class SpiritCalculation(CalcJob):
             script += "NOS = system.get_nos(p_state)"
 
             # Loop over temperatures
-            with script.block("for iT, T in sample_temperaturs:s"):
+            with script.block("for iT, T in enumerate(sample_temperatures):"):
                 script += "parameters.mc.set_temperature(p_state, T)"
                 script.configuration("plus_z")
                 script += """
@@ -477,9 +477,15 @@ class SpiritCalculation(CalcJob):
                 """
 
         script += """
-        with open("output_mc.txt", "w") as f:
-            for i, T in enumerate(sample_temperatures):
-                f.write( "\n" + str(T) + "     " + str(energy_samples[i]) + "     " + str(magnetization_samples[i]) + "     " + str(susceptibility_samples[i]) + "     " + str(specific_heat_samples[i]) + "     " + str(binder_cumulant_samples[i]) )
+        output_mc      = np.zeros((len(sample_temperatures), 6))
+        output_mc[:,0] = sample_temperatures
+        output_mc[:,1] = energy_samples
+        output_mc[:,2] = magnetization_samples
+        output_mc[:,3] = susceptibility_samples
+        output_mc[:,4] = specific_heat_samples
+        output_mc[:,5] = binder_cumulant_samples
+
+        np.savetxt("output_mc.txt", output_mc, header="sample_temperatures, energy_samples, magnetization_samples, susceptibility_samples, specific_heat_samples, binder_cumulant_samples")
         """
 
         # write run_spirit.py to the folder
