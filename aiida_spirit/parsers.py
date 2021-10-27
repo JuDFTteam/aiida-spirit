@@ -73,7 +73,7 @@ class SpiritParser(Parser):
         """Retrieves a file and loads it with np.loadtxt. *args and **kwargs are passed to np.loadtxt. If the file is not found it returns None."""
         retrieved = self.retrieved
         if filename in retrieved.list_object_names():
-            with retrieved.open(filename, 'r')
+            with retrieved.open(filename, 'r'):
                 return np.loadtxt(_f, *args, **kwargs)
         else:
             self.logger.info("{} not found!".format(filename))
