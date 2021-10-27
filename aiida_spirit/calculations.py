@@ -170,9 +170,9 @@ class SpiritCalculation(CalcJob):
             retlist += ['defects.txt']
 
         run_opts = self.inputs.run_options.get_dict()
-        if run_opts["method"].upper() == "LLG":
+        if run_opts['simulation_method'].upper() == "LLG":
             retlist += ['spirit_Image-00_Energy-archive.txt', 'spirit_Image-00_Spins-final.ovf', 'spirit_Image-00_Spins-initial.ovf']
-        elif run_opts["method"].upper() == "MC":
+        elif run_opts['simulation_method'].upper() == "MC":
             retlist += ['output_mc.txt']
 
         calcinfo.retrieve_list = retlist
