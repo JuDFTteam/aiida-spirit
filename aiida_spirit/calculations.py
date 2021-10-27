@@ -26,8 +26,6 @@ _INPUT_CFG = 'input_created.cfg'  # spirit input file
 # Default retrieve list
 _RETLIST = [
     _SPIRIT_STDOUT, _INPUT_CFG, _RUN_SPIRIT
-    # 'spirit_Image-00_Energy-archive.txt', 'spirit_Image-00_Spins-final.ovf',
-    # 'spirit_Image-00_Spins-initial.ovf'
 ]
 
 
@@ -170,6 +168,13 @@ class SpiritCalculation(CalcJob):
         if 'defects' in self.inputs:
             # also retreive the defects file
             retlist += ['defects.txt']
+
+        run_opts = self.inputs.run_options.get_dict()
+        if run_opts["method"].upper() == "LLG":
+            retlist += ['spirit_Image-00_Energy-archive.txt', 'spirit_Image-00_Spins-final.ovf', 'spirit_Image-00_Spins-initial.ovf']
+        elif run_opts["method"].upper() == "MC":
+            retlist += ['output_mc.txt']
+
         calcinfo.retrieve_list = retlist
 
         return calcinfo
