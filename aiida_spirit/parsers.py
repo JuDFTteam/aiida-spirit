@@ -93,9 +93,16 @@ class SpiritParser(Parser):
         with retrieved.open('spirit_Image-00_Spins-final.ovf') as _f:
             m_final = np.loadtxt(_f)
 
+        # TODO: dont really know how to handle this better right now.
+        # would be cleaner to only try to parse this after an mc calculation, 
+        # but I dont really know how to check the run_opts after the fact
+        output_mc = None
         self.logger.info("Parsing MC data")
-        with retrieved.open('output_mc.txt') as _f:
-            output_mc = np.loadtxt(_f)
+        try:
+            with retrieved.open('output_mc.txt') as _f:
+                output_mc = np.loadtxt(_f)
+        except FileNotFoundError: # Catch file not found, since output_mc only gets written after an mc calculation
+            self.logger.info("MC data not found")
 
         # collect arrays in ArrayData
         mag = ArrayData()
@@ -116,10 +123,10 @@ class SpiritParser(Parser):
         output_mc = ArrayData()
         output_mc.set_array('mc_data', output_mc)
         output_mc.extras['description'] = {
-            '....'
+            '...'
         }
 
-        return output_node, mag, energies
+        return output_node, mag, energies, output_mc
 
 
 def parse_outfile(txt):
