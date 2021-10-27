@@ -25,9 +25,9 @@ _INPUT_CFG = 'input_created.cfg'  # spirit input file
 
 # Default retrieve list
 _RETLIST = [
-    _SPIRIT_STDOUT, _INPUT_CFG, _RUN_SPIRIT,
-    'spirit_Image-00_Energy-archive.txt', 'spirit_Image-00_Spins-final.ovf',
-    'spirit_Image-00_Spins-initial.ovf'
+    _SPIRIT_STDOUT, _INPUT_CFG, _RUN_SPIRIT
+    # 'spirit_Image-00_Energy-archive.txt', 'spirit_Image-00_Spins-final.ovf',
+    # 'spirit_Image-00_Spins-initial.ovf'
 ]
 
 
