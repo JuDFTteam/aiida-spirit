@@ -96,11 +96,11 @@ class SpiritParser(Parser):
         # TODO: dont really know how to handle this better right now.
         # would be cleaner to only try to parse this after an mc calculation, 
         # but I dont really know how to check the run_opts after the fact
-        output_mc = np.array([])
+        _output_mc = np.array([])
         self.logger.info("Parsing MC data")
         try:
             with retrieved.open('output_mc.txt') as _f:
-                output_mc = np.loadtxt(_f)
+                _output_mc = np.loadtxt(_f)
         except FileNotFoundError: # Catch file not found, since output_mc only gets written after an mc calculation
             self.logger.info("MC data not found")
 
@@ -121,7 +121,7 @@ class SpiritParser(Parser):
         }
 
         output_mc = ArrayData()
-        output_mc.set_array('mc_data', output_mc)
+        output_mc.set_array('mc_data', _output_mc)
         output_mc.extras['description'] = {
             '...'
         }
