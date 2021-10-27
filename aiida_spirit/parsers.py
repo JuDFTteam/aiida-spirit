@@ -111,7 +111,7 @@ class SpiritParser(Parser):
         }
 
         # collect arrays in ArrayData
-        if m_init and m_final:
+        if m_init is not None and m_final is not None:
             mag = ArrayData()
             mag.set_array(
                 'initial',
@@ -123,7 +123,7 @@ class SpiritParser(Parser):
             }
             _retrieved_dict.update( {"magnetization" : mag} )
 
-        if energ:
+        if energ is not None:
             energies = ArrayData()
             energies.set_array('energies', energ)
             energies.extras['description'] = {
@@ -132,7 +132,7 @@ class SpiritParser(Parser):
             _retrieved_dict.update( {"energies" : energies} )
 
         # Only add mc if it is found
-        if out_mc:
+        if out_mc is not None:
             output_mc = ArrayData()
 
             # Associante the columns of out_mc with individual arrays
