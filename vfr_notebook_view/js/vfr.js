@@ -140,6 +140,8 @@ VFRendering.prototype._createVFRenderingBindings = function(Module)
         Module.set_background(colour_ptr);
     };
 
+    Module.set_vertical_field_of_view = Module.cwrap('set_vertical_field_of_view', null, ['number']);
+
     Module.set_coordinate_system = Module.cwrap('set_coordinate_system', null, ['number', 'number']);
     VFRendering.prototype.set_coordinatesystem = function(show, position) {
         Module.set_coordinate_system(this._state, show, position);

@@ -85,7 +85,7 @@ class SpiritCalculation(CalcJob):
                    help="""Use a node that specifies the full pinning information for all spins
                         in the spirit supercell that should be pinned (i.e. take into account
                         the n_basis_cells input from the parameters input node. This is an
-                        ArrayData object which should have the array called pinning which has
+                        ArrayData object which should have the array called 'pinning' which has
                         the columns (i, da, db, dc, Sx, Sy, Sz).
                         See https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html#pinning-a-name-pinning-a
                         for more information on pinning in spirit.
@@ -93,12 +93,18 @@ class SpiritCalculation(CalcJob):
         spec.input('defects', valid_type=ArrayData, required=False,
                    help="""Use a node that specifies the defects information for all spins
                         in the spirit supercell. This is an ArrayData object that should
-                        define the defects in the defects array (column should be i, da, db, dc, itype
+                        define the defects in the 'defects' array (column should be i, da, db, dc, itype
                         where itype<0 means vacancy). The atom type information can be given with the
                         atom_type array in the defects ArrayData that has the columns
                         (iatom  atom_type  mu_s  concentration).
                         See https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html
                         for more information on defects in spirit.
+                        """)
+        spec.input('initial_state', valid_type=ArrayData, required=False,
+                   help="""Use a node that specifies the initial directions of all spins
+                        in the spirit supercell. This is an ArrayData object that should
+                        define the 'initial_state' array (columns should be x, y, z).
+                        This overwrites the configuration input!
                         """)
 
         # define output nodes
@@ -137,6 +143,11 @@ class SpiritCalculation(CalcJob):
         # CREATE "defects.txt" file if needed
         if 'defects' in self.inputs:
             self.write_defects_file(folder)
+
+        ##############################################
+        # CREATE "initial_state.txt" file if needed
+        if 'initial_state' in self.inputs:
+            self.write_initial_configuration(folder)
 
         ##############################################
         # CREATE "couplings.txt" FILE FROM Jij
@@ -265,16 +276,23 @@ class SpiritCalculation(CalcJob):
           0  1 0 0  -1
           0  0 1 0  -1
         """
-        # get defects array from the input node
-        defects = self.inputs.defects.get_array('defects')
+        # check if defects list is given
+        if 'defects' not in self.inputs.defects.get_arraynames():
+            # no list of defects specified
+            # instead set n_defects to zero in the spirit defects file
+            with folder.open('defects.txt', 'w') as _f:
+                _f.writelines(['n_defects 0\n'])
+        else:
+            # get defects array from the input node
+            defects = self.inputs.defects.get_array('defects')
 
-        # convert to dataframe for easier writeout
-        defects_df = DataFrame(defects, columns=['i', 'da', 'db', 'dc', 'itype'])
-        defects_df = defects_df.astype({'i':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'itype':'int64'})
+            # convert to dataframe for easier writeout
+            defects_df = DataFrame(defects, columns=['i', 'da', 'db', 'dc', 'itype'])
+            defects_df = defects_df.astype({'i':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'itype':'int64'})
 
-        # Write the defects file in csv format that spirit can understand
-        with folder.open('defects.txt', 'w') as f:
-            defects_df.to_csv(f, sep='\t', index=False, header=False)
+            # Write the defects file in csv format that spirit can understand
+            with folder.open('defects.txt', 'w') as _f:
+                defects_df.to_csv(_f, sep='\t', index=False, header=False)
 
 
     def write_pinning_file(self, folder): # pylint: disable=unused-argument
@@ -300,8 +318,28 @@ class SpiritCalculation(CalcJob):
         pinning_df['Sz'] /= norm
 
         # Write the pinning file in csv format that spirit can understand
-        with folder.open('pinning.txt', 'w') as f:
-            pinning_df.to_csv(f, sep='\t', index=False, header=False)
+        with folder.open('pinning.txt', 'w') as _f:
+            pinning_df.to_csv(_f, sep='\t', index=False, header=False)
+
+
+    def write_initial_configuration(self, folder):
+        """Write the 'initial_state.txt' file that contains the direction for each spin"""
+        # get the initial state (i.e. directions array) from the input node
+        initial_state = self.inputs.initial_state.get_array('initial_state')
+
+        # convert to dataframe for easier writeout
+        initial_state_df = DataFrame(initial_state, columns=['x', 'y', 'z'])
+        initial_state_df = initial_state_df.astype({'x':'float64', 'y':'float64', 'z':'float64'})
+
+        # make sure the pinning direction is normalized
+        norm = np.sqrt(initial_state_df['x']**2 + initial_state_df['y']**2 + initial_state_df['z']**2)
+        initial_state_df['x'] /= norm
+        initial_state_df['y'] /= norm
+        initial_state_df['z'] /= norm
+
+        # Write the pinning file in csv format that spirit can understand
+        with folder.open('initial_state.txt', 'w') as _f:
+            initial_state_df.to_csv(_f, sep='\t', index=False, header=False)
 
 
     def write_couplings_file(self, folder): # pylint: disable=unused-argument
@@ -346,9 +384,9 @@ class SpiritCalculation(CalcJob):
             jijs_df = jijs_df[r <= self.couplings_rcut]
 
         # Write the couplings file in csv format that spirit can understand
-        with folder.open('couplings.txt', 'w') as f:
+        with folder.open('couplings.txt', 'w') as _f:
             # spirit wants to have the data separated in tabs
-            jijs_df.to_csv(f, sep='\t', index=False)
+            jijs_df.to_csv(_f, sep='\t', index=False)
 
 
     def write_run_spirit(self, folder):
@@ -363,6 +401,8 @@ class SpiritCalculation(CalcJob):
 from spirit import state
 from spirit import configuration
 from spirit import simulation
+from spirit import geometry
+from spirit import io
 
 cfgfile = "input_created.cfg"
 quiet = False
@@ -393,6 +433,21 @@ with state.State(cfgfile, quiet) as p_state:"""
         if 'plus_z' in config and config.get('plus_z', False):
             body += '    configuration.plus_z(p_state) # start from all spins pointing in +z\n'
         # here we should add additional configurations
+
+        # write out the atom_types
+        body += '\n'
+        body += '    # write atom types information (needed for defects)\n'
+        body += '    atom_types = geometry.get_atom_types(p_state)\n'
+        body += '    with open("atom_types.txt", "w") as _f:\n'
+        body += '        _f.writelines([f"{i}\n" for i in atom_types])\n'
+        body += '\n'
+
+        # set an initial state defined for all spins, this overwites the previous configuration setting!
+        if 'initial_state' in self.inputs:
+            body += '\n'
+            body += '    # write atom types information (needed for defects)\n'
+            body += '    io.image_read(p_state, "initial_state.txt")\n'
+            body += '\n'
 
         # finalize body with starting the spirit simulation
         body += '    # now run the simulation\n    simulation.start(p_state, method, solver)\n'
