@@ -71,7 +71,7 @@ def _plot_spins_vfr(  # pylint: disable=too-many-arguments
         )
 
 
-def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-arguments
+def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-arguments,too-many-locals
         spirit_calc,
         show_final_structure=True,
         scale_spins=1.0,
@@ -105,10 +105,22 @@ def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-argum
 
     # get initial or final spin directions
     m = spirit_calc.outputs.magnetization
+    minit = m.get_array('initial')
+    mfinal = m.get_array('final')
     if show_final_structure:
-        m = m.get_array('final')
+        m = mfinal
     else:
-        m = m.get_array('initial')
+        m = minit
+
+    if 'defects' in spirit_calc.inputs:
+        if 'atom_types' in spirit_calc.outputs:
+            # hide defects
+            atom_types = spirit_calc.outputs.atom_types.get_array('atom_types')
+            m[atom_types < 0] = 0
+        else:
+            # fallback if atom_types are not there
+            # these are the positions where the initial and final spins are the same (hide those if we have defects)
+            m[(minit == mfinal).all(axis=1)] = 0
 
     # print a list of files that are still on the remote and which can be plotted
     if list_spin_files_on_remote or use_remote_spins_id is not None:
