@@ -439,7 +439,7 @@ with state.State(cfgfile, quiet) as p_state:"""
         body += '    # write atom types information (needed for defects)\n'
         body += '    atom_types = geometry.get_atom_types(p_state)\n'
         body += '    with open("atom_types.txt", "w") as _f:\n'
-        body += '        _f.writelines([f"{i}\n" for i in atom_types])\n'
+        body += '        _f.writelines([f"{i}" for i in atom_types])\n'
         body += '\n'
 
         # set an initial state defined for all spins, this overwites the previous configuration setting!
