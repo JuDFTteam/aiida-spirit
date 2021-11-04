@@ -52,10 +52,11 @@ class SpiritParser(Parser):
             return self.exit_codes.ERROR_MISSING_OUTPUT_FILES
 
         # parse information from output file (number of iterations, convergence info, ...)
-        output_node, mag, energ = self.parse_retrieved()
+        output_node, mag, energ, atypes = self.parse_retrieved()
         self.out('output_parameters', output_node)
         self.out('magnetization', mag)
         self.out('energies', energ)
+        self.out('atom_types', atypes)
 
         # check consistency of spirit_version_info with the inputs
         if 'pinning' in self.node.inputs:
@@ -92,6 +93,8 @@ class SpiritParser(Parser):
         self.logger.info('Parsing final magnetization')
         with retrieved.open('spirit_Image-00_Spins-final.ovf') as _f:
             m_final = np.loadtxt(_f)
+        with retrieved.open('atom_types.txt') as _f:
+            atyp = np.loadtxt(_f)
 
         # collect arrays in ArrayData
         mag = ArrayData()
@@ -108,8 +111,13 @@ class SpiritParser(Parser):
         energies.extras['description'] = {
             'energies': 'energy convergence',
         }
+        atypes = ArrayData()
+        atypes.set_array('atom_types', atyp)
+        atypes.extras['description'] = {
+            'atom_types': 'list of atom types for all positions',
+        }
 
-        return output_node, mag, energies
+        return output_node, mag, energies, atypes
 
 
 def parse_outfile(txt):

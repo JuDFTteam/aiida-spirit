@@ -26,7 +26,7 @@ _INPUT_CFG = 'input_created.cfg'  # spirit input file
 _RETLIST = [
     _SPIRIT_STDOUT, _INPUT_CFG, _RUN_SPIRIT,
     'spirit_Image-00_Energy-archive.txt', 'spirit_Image-00_Spins-final.ovf',
-    'spirit_Image-00_Spins-initial.ovf'
+    'spirit_Image-00_Spins-initial.ovf', 'atom_types.txt'
 ]
 
 
@@ -114,6 +114,8 @@ class SpiritCalculation(CalcJob):
                     help='initial and final magnetization')
         spec.output('energies', valid_type=ArrayData, required=True,
                     help='energy convergence')
+        spec.output('atom_types', valid_type=ArrayData, required=False,
+                    help='list of atom types used in the simulation (-1 indicates vacancies).')
 
         # define exit codes that are used to terminate the SpiritCalculation
         spec.exit_code(100, 'ERROR_MISSING_OUTPUT_FILES', message='Calculation did not produce all expected output files.')
@@ -439,7 +441,7 @@ with state.State(cfgfile, quiet) as p_state:"""
         body += '    # write atom types information (needed for defects)\n'
         body += '    atom_types = geometry.get_atom_types(p_state)\n'
         body += '    with open("atom_types.txt", "w") as _f:\n'
-        body += '        _f.writelines([f"{i}" for i in atom_types])\n'
+        body += '        _f.writelines([f"{i}\\n" for i in atom_types])\n'
         body += '\n'
 
         # set an initial state defined for all spins, this overwites the previous configuration setting!
