@@ -71,8 +71,8 @@ class SpiritParser(Parser):
         return ExitCode(0)
 
     def _retrieve_if_found(self, filename, *args, **kwargs):
-        """Retrieves a file and loads it with np.loadtxt.
-        *args and **kwargs are passed to np.loadtxt.
+        """Retrieves a file and loads it with `np.loadtxt`.
+        The `*args` and `**kwargs` are passed to `np.loadtxt`.
         If the file is not found it returns None."""
         retrieved = self.retrieved
         if filename in retrieved.list_object_names():

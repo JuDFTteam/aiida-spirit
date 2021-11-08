@@ -44,6 +44,16 @@ aiida\_spirit.tools.plotting module
    :undoc-members:
    :show-inheritance:
 
+aiida\_spirit.tools.spirit\_script\_builder module
+--------------------------------------------------
+
+.. automodule:: aiida_spirit.tools.spirit_script_builder
+   :members:
+   :special-members:
+   :private-members:
+   :undoc-members:
+   :show-inheritance:
+
 Module contents
 ---------------
 

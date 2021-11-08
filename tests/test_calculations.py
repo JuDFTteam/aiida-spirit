@@ -217,7 +217,7 @@ def test_spirit_calc_with_param(spirit_code):
     print(mag_mean)
     assert mag_mean[0] < 0.25
     assert mag_mean[1] < 0.25
-    assert mag_mean[2] > 0.85
+    assert mag_mean[2] > 0.80
 
 
 def check_outcome(result, threshold=1e-5):

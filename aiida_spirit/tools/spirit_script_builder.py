@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Helper class for builder run_spirit script
+Helper class for builder run_spirit script.
 """
 
 
@@ -58,9 +58,11 @@ class PythonScriptBuilder():
 
     def block(self, header):
         """"
-            Start a block with a header.
-            e.g:    with s.block("for i in range(10):"):
-                        print(i)
+         Start a block with a header.
+         e.g::
+
+             with s.block("for i in range(10):"):
+                    print(i)
         """
         self += header
         return self
@@ -138,7 +140,7 @@ class SpiritScriptBuilder(PythonScriptBuilder):
                                             self._dict_to_arg_string(kwargs))
 
     def import_modules(self, *args):
-        """Imports the modules given in *args. If no *args are given, imports all modules in the module dict"""
+        """Imports the modules given in `*args`. If no `*args` are given, imports all modules in the `module` dict"""
         if len(args) > 0:
             for a in args:
                 self += 'from spirit import {}'.format(a)
