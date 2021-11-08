@@ -12,7 +12,7 @@ from aiida.engine import CalcJob
 from aiida.orm import Dict, StructureData, ArrayData
 from .data._formatting_info import _forbidden_keys
 from .data._type_check import verify_input_para  #, validate_input_dict
-from .spirit_script_builder import SpiritScriptBuilder
+from .tools.spirit_script_builder import SpiritScriptBuilder
 
 # this is the template input config file which is read in and changed according to the inputs
 TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
@@ -25,9 +25,7 @@ _INPUT_CFG = 'input_created.cfg'  # spirit input file
 _ATOM_TYPES = 'atom_types.txt'
 
 # Default retrieve list
-_RETLIST = [
-    _SPIRIT_STDOUT, _INPUT_CFG, _RUN_SPIRIT, _ATOM_TYPES
-]
+_RETLIST = [_SPIRIT_STDOUT, _INPUT_CFG, _RUN_SPIRIT, _ATOM_TYPES]
 
 
 # validators for input ports
@@ -184,9 +182,11 @@ class SpiritCalculation(CalcJob):
             retlist += ['defects.txt']
 
         run_opts = self.inputs.run_options.get_dict()
-        if run_opts['simulation_method'].upper() == "LLG":
-            retlist += ['spirit_Image-00_Energy-archive.txt', 'spirit_Image-00_Spins-final.ovf', 'spirit_Image-00_Spins-initial.ovf']
-        elif run_opts['simulation_method'].upper() == "MC":
+        if run_opts['simulation_method'].upper() == 'LLG':
+            retlist += ['spirit_Image-00_Energy-archive.txt',
+                        'spirit_Image-00_Spins-final.ovf',
+                        'spirit_Image-00_Spins-initial.ovf']
+        elif run_opts['simulation_method'].upper() == 'MC':
             retlist += ['output_mc.txt']
 
         calcinfo.retrieve_list = retlist
@@ -411,7 +411,7 @@ class SpiritCalculation(CalcJob):
         solver = run_opts.get('solver')
         config = run_opts.get('configuration', {})
 
-        if method.upper() == "MC":
+        if method.upper() == 'MC':
             self.write_mc_script(folder) # A bit unclean but lets separate the code somewhat
             return
 
@@ -420,15 +420,15 @@ class SpiritCalculation(CalcJob):
         script.import_modules()
         with script.state_block():
             # write out the atom_types (needed for parsing defects)
-            script += "atom_types = geometry.get_atom_types(p_state)"
+            script += 'atom_types = geometry.get_atom_types(p_state)'
             with script.block("with open('"+_ATOM_TYPES+"', 'w') as _f:"):
                 script += "_f.writelines([f'{i}\\n' for i in atom_types])"
 
             # deal with the input configuration
-            if "plus_z" in config and config.get("plus_z", False):
-                script.configuration("plus_z")
+            if 'plus_z' in config and config.get('plus_z', False):
+                script.configuration('plus_z')
             else:
-                script.configuration("random")
+                script.configuration('random')
 
             # set an initial state defined for all spins
             # this overwites the previous configuration setting!
@@ -443,6 +443,7 @@ class SpiritCalculation(CalcJob):
 
 
     def write_mc_script(self, folder):
+        """Write the MC script version of run_spirit.py"""
         script = SpiritScriptBuilder()
         script += """
         import numpy as np
@@ -458,12 +459,12 @@ class SpiritCalculation(CalcJob):
         """
 
         run_opts = self.inputs.run_options.get_dict()
-        mc_configuration = run_opts["mc_configuration"]
+        mc_configuration = run_opts['mc_configuration']
 
-        keys = ["n_thermalisation", "n_decorrelation", "n_samples", "n_temperatures", "T_start", "T_end"]
+        keys = ['n_thermalisation', 'n_decorrelation', 'n_samples', 'n_temperatures', 'T_start', 'T_end']
 
         for k in keys:
-            script += "{:20} = {}".format(k, mc_configuration[k])
+            script += '{:20} = {}'.format(k, mc_configuration[k])
 
         script += """
         sample_temperatures     = np.linspace(T_start, T_end, n_temperatures)
@@ -476,17 +477,17 @@ class SpiritCalculation(CalcJob):
 
         with script.state_block():
             # write out the atom_types (needed for parsing defects)
-            script += "atom_types = geometry.get_atom_types(p_state)"
+            script += 'atom_types = geometry.get_atom_types(p_state)'
             with script.block("with open('"+_ATOM_TYPES+"', 'w') as _f:"):
                 script += "_f.writelines([f'{i}\\n' for i in atom_types])"
 
             # get number of spins
-            script += "NOS = system.get_nos(p_state)"
+            script += 'NOS = system.get_nos(p_state)'
 
             # Loop over temperatures
-            with script.block("for iT, T in enumerate(sample_temperatures):"):
-                script += "parameters.mc.set_temperature(p_state, T)"
-                script.configuration("plus_z")
+            with script.block('for iT, T in enumerate(sample_temperatures):'):
+                script += 'parameters.mc.set_temperature(p_state, T)'
+                script.configuration('plus_z')
                 script += """
                 # Cumulative average variables
                 E  = 0
