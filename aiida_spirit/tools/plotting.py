@@ -104,6 +104,14 @@ def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-argum
     pos_cell = np.array([i.position for i in struc.sites])
 
     # get initial or final spin directions
+    if 'magnetization' not in spirit_calc.outputs:
+        if not spirit_calc.is_finished_ok and spirit_calc.is_terminated:
+            raise ValueError('SpiritCalculation did not finish ok.')
+        print(
+            'SpiritCalculation does not have magnetization output node. Cannot plot anything'
+        )
+        return
+
     m = spirit_calc.outputs.magnetization
     minit = m.get_array('initial')
     mfinal = m.get_array('final')
