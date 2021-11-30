@@ -9,7 +9,7 @@ import numpy as np
 from pandas import DataFrame
 from aiida.common import datastructures
 from aiida.engine import CalcJob
-from aiida.orm import Dict, StructureData, ArrayData
+from aiida.orm import Dict, StructureData, ArrayData, List
 from .data._formatting_info import _forbidden_keys
 from .data._type_check import verify_input_para  #, validate_input_dict
 from .tools.spirit_script_builder import SpiritScriptBuilder
@@ -45,6 +45,11 @@ def validate_params(params, _):  # pylint: disable=inconsistent-return-statement
 
 class SpiritCalculation(CalcJob):
     """Run Spirit calculation from user defined inputs."""
+
+    # Default input and output files, will be shows with inputcat/outputcat
+    _DEFAULT_INPUT_FILE = _INPUT_CFG
+    _DEFAULT_OUTPUT_FILE = _SPIRIT_STDOUT
+
     @classmethod
     def define(cls, spec):
         """Define inputs and outputs of the calculation."""
@@ -68,12 +73,16 @@ class SpiritCalculation(CalcJob):
                    default=lambda: Dict(dict={'simulation_method': 'LLG',
                                               'solver': 'Depondt',
                                               'configuration': {},
+                                              'post_processing': '',
                                              }),
                    help="""Dict node that allows to control the spirit run
                         (e.g. simulation_method=LLG, solver=Depondt).
                         The configuration input specifies the input configuration
                         (the default is to start from a random configuration,
                         plus_z is also possible to start from all spins pointing in +z).
+                        The post_processing string is added to the run script and allows
+                        to add e.g. quantities.get_topological_charge(p_state) for the
+                        calculation of the topological charge of a 2D system.
                         """)
         spec.input('structure', valid_type=StructureData, required=True,
                    help='Use a node that specifies the input crystal structure')
@@ -104,6 +113,8 @@ class SpiritCalculation(CalcJob):
                         define the 'initial_state' array (columns should be x, y, z).
                         This overwrites the configuration input!
                         """)
+        spec.input('add_to_retrieved', valid_type=List, required=False,
+                   help='List of strings specifying additional files that should be retrieved.')
 
         # define output nodes
         spec.output('output_parameters', valid_type=Dict, required=True,
@@ -188,6 +199,10 @@ class SpiritCalculation(CalcJob):
                         'spirit_Image-00_Spins-initial.ovf']
         elif run_opts['simulation_method'].upper() == 'MC':
             retlist += ['output_mc.txt']
+
+        # from the input we can specify additional files that should be retrieved
+        if 'add_to_retrieved' in self.inputs:
+            retlist += self.inputs.add_to_retrieved.get_list()
 
         calcinfo.retrieve_list = retlist
 
@@ -410,6 +425,7 @@ class SpiritCalculation(CalcJob):
         method = run_opts.get('simulation_method')
         solver = run_opts.get('solver')
         config = run_opts.get('configuration', {})
+        post_proc = run_opts.get('post_processing', '')
 
         if method.upper() == 'MC':
             self.write_mc_script(folder) # A bit unclean but lets separate the code somewhat
@@ -428,13 +444,18 @@ class SpiritCalculation(CalcJob):
             if 'plus_z' in config and config.get('plus_z', False):
                 script.configuration('plus_z')
             else:
-                script.configuration('random')
+                for _ in range(config.get('random', 1)):
+                    script.configuration('random')
 
             # set an initial state defined for all spins
             # this overwites the previous configuration setting!
             if 'initial_state' in self.inputs:
                 script += 'io.image_read(p_state, "initial_state.txt")'
             script.start_simulation(method, solver)
+
+            # maybe add post_processing script
+            if len(post_proc) > 0:
+                script += post_proc
 
         # write run_spirit.py to the folder
         with folder.open(_RUN_SPIRIT, 'w') as f:
