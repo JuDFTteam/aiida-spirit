@@ -91,6 +91,12 @@ Module['ready'] = new Promise(function(resolve, reject) {
       }
 
 
+      if (!Object.getOwnPropertyDescriptor(Module['ready'], '_set_vertical_field_of_view')) {
+        Object.defineProperty(Module['ready'], '_set_vertical_field_of_view', { configurable: true, get: function() { abort('You are getting _set_vertical_field_of_view on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js') } });
+        Object.defineProperty(Module['ready'], '_set_vertical_field_of_view', { configurable: true, set: function() { abort('You are setting _set_vertical_field_of_view on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js') } });
+      }
+
+
       if (!Object.getOwnPropertyDescriptor(Module['ready'], '_set_rendermode')) {
         Object.defineProperty(Module['ready'], '_set_rendermode', { configurable: true, get: function() { abort('You are getting _set_rendermode on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js') } });
         Object.defineProperty(Module['ready'], '_set_rendermode', { configurable: true, set: function() { abort('You are setting _set_rendermode on the Promise object, instead of the instance. Use .then() to get called back with the instance, see the MODULARIZE docs in src/settings.js') } });
@@ -963,8 +969,8 @@ var wasmMemory;
 // so this creates a (non-native-wasm) table for us.
 
 var wasmTable = new WebAssembly.Table({
-  'initial': 1422,
-  'maximum': 1422 + 0,
+  'initial': 1432,
+  'maximum': 1432 + 0,
   'element': 'anyfunc'
 });
 
@@ -1585,11 +1591,11 @@ function updateGlobalBufferAndViews(buf) {
 }
 
 var STATIC_BASE = 1024,
-    STACK_BASE = 5390528,
+    STACK_BASE = 5390752,
     STACKTOP = STACK_BASE,
-    STACK_MAX = 147648,
-    DYNAMIC_BASE = 5390528,
-    DYNAMICTOP_PTR = 147472;
+    STACK_MAX = 147872,
+    DYNAMIC_BASE = 5390752,
+    DYNAMICTOP_PTR = 147696;
 
 assert(STACK_BASE % 16 === 0, 'stack must start aligned');
 assert(DYNAMIC_BASE % 16 === 0, 'heap must start aligned');
@@ -2157,7 +2163,7 @@ var ASM_CONSTS = {
 
 
 
-// STATICTOP = STATIC_BASE + 146624;
+// STATICTOP = STATIC_BASE + 146848;
 /* global initializers */  __ATINIT__.push({ func: function() { ___wasm_call_ctors() } });
 
 
@@ -2320,7 +2326,7 @@ var ASM_CONSTS = {
 
       var pointer = ___cxa_is_pointer_type(throwntype);
       // can_catch receives a **, add indirection
-      var buffer = 147632;
+      var buffer = 147856;
       HEAP32[((buffer)>>2)]=thrown;
       thrown = buffer;
       // The different catch blocks are denoted by different types.
@@ -2357,7 +2363,7 @@ var ASM_CONSTS = {
 
       var pointer = ___cxa_is_pointer_type(throwntype);
       // can_catch receives a **, add indirection
-      var buffer = 147632;
+      var buffer = 147856;
       HEAP32[((buffer)>>2)]=thrown;
       thrown = buffer;
       // The different catch blocks are denoted by different types.
@@ -5033,7 +5039,7 @@ var ASM_CONSTS = {
     }
 
   function _emscripten_get_sbrk_ptr() {
-      return 147472;
+      return 147696;
     }
 
 
@@ -5980,10 +5986,10 @@ var ASM_CONSTS = {
   function _glViewport(x0, x1, x2, x3) { GLctx['viewport'](x0, x1, x2, x3) }
 
 
-  var ___tm_current=147488;
+  var ___tm_current=147712;
 
 
-  var ___tm_timezone=(stringToUTF8("GMT", 147536, 4), 147536);
+  var ___tm_timezone=(stringToUTF8("GMT", 147760, 4), 147760);
 
   function _tzset() {
       // TODO: Use (malleable) environment variables instead of system settings.
@@ -6567,6 +6573,9 @@ var _set_visibility = Module["_set_visibility"] = createExportWrapper("set_visib
 
 /** @type {function(...*):?} */
 var _set_vectorsphere = Module["_set_vectorsphere"] = createExportWrapper("set_vectorsphere");
+
+/** @type {function(...*):?} */
+var _set_vertical_field_of_view = Module["_set_vertical_field_of_view"] = createExportWrapper("set_vertical_field_of_view");
 
 /** @type {function(...*):?} */
 var _draw = Module["_draw"] = createExportWrapper("draw");

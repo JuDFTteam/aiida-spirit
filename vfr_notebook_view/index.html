@@ -146,42 +146,56 @@
     <h5>Details</h5>
     <div class="well well-sm">
       <form class="form-horizontal">
-        <form class="form">
+        <div class="form-group">
+          <label for="select-colormap" class="col-sm-6 control-label">Coordinate System Position</label>
+          <div class="col-sm-6">
+            <select id="select-coordinatesystem-position">
+              <option>Top left</option>
+              <option>Top right</option>
+              <option selected="selected">Bottom right</option>
+              <option>Bottom left</option>
+            </select>
+          </div>
+        </div>
+      </form>
+      <form class="form-horizontal">
+        <div class="form-group">
+          <label for="select-miniview-position" class="col-sm-6 control-label">Miniview Position</label>
           <div class="form-group">
-            <label for="select-colormap" class="col-sm-6 control-label">Coordinate System Position</label>
             <div class="col-sm-6">
-              <select id="select-coordinatesystem-position">
+              <select id="select-miniview-position">
                 <option>Top left</option>
                 <option>Top right</option>
-                <option selected="selected">Bottom right</option>
-                <option>Bottom left</option>
+                <option>Bottom right</option>
+                <option selected="selected">Bottom left</option>
               </select>
             </div>
           </div>
-        </form>
-        <form class="form">
+        </div>
+      </form>
+      <form class="form-horizontal">
+        <div class="form-group">
+          <label for="select-projection" class="col-sm-6 control-label">Projection</label>
           <div class="form-group">
-            <label for="select-colormap" class="col-sm-6 control-label">Miniview Position</label>
-            <div class="form-group">
-              <div class="col-sm-6">
-                <select id="select-miniview-position">
-                  <option>Top left</option>
-                  <option>Top right</option>
-                  <option>Bottom right</option>
-                  <option selected="selected">Bottom left</option>
-                </select>
-              </div>
+            <div class="col-sm-6">
+              <select id="select-projection">
+                <option value="0">Orthographic</option>
+                <option value="15">Perspective (15&deg;)</option>
+                <option value="30">Perspective (30&deg;)</option>
+                <option value="45" selected="selected">Perspective (45&deg;)</option>
+                <option value="60">Perspective (60&deg;)</option>
+              </select>
             </div>
           </div>
-        </form>
-        <form class="form">
-          <div class="form-group">
-            <label for="input-zrange-filter" class="control-label">Spin Sphere Point Size</label>
-            <div style="margin-left:20px;">
-              <input id="input-spinspherewidget-pointsize" type="text" class="span2" style="padding:2em" value="" data-slider-min="1" data-slider-max="10" data-slider-step="1" data-slider-value="[1,1]" data-slider-ticks="[1, 5, 10]"/>
-            </div>
+        </div>
+      </form>
+      <form class="form">
+        <div class="form-group">
+          <label for="input-zrange-filter" class="control-label">Spin Sphere Point Size</label>
+          <div style="margin-left:20px;">
+            <input id="input-spinspherewidget-pointsize" type="text" class="span2" style="padding:2em" value="" data-slider-min="1" data-slider-max="10" data-slider-step="1" data-slider-value="[1,1]" data-slider-ticks="[1, 5, 10]"/>
           </div>
-        </form>
+        </div>
       </form>
     </div>
   </aside>

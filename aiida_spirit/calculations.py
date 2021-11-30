@@ -9,9 +9,10 @@ import numpy as np
 from pandas import DataFrame
 from aiida.common import datastructures
 from aiida.engine import CalcJob
-from aiida.orm import Dict, StructureData, ArrayData
+from aiida.orm import Dict, StructureData, ArrayData, List
 from .data._formatting_info import _forbidden_keys
 from .data._type_check import verify_input_para  #, validate_input_dict
+from .tools.spirit_script_builder import SpiritScriptBuilder
 
 # this is the template input config file which is read in and changed according to the inputs
 TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
@@ -21,13 +22,10 @@ TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
 _RUN_SPIRIT = 'run_spirit.py'  # python file that runs the spirit job through the spirit python API
 _SPIRIT_STDOUT = 'spirit.stdout'  # filename where the stdout of the spirit run is put
 _INPUT_CFG = 'input_created.cfg'  # spirit input file
+_ATOM_TYPES = 'atom_types.txt'
 
 # Default retrieve list
-_RETLIST = [
-    _SPIRIT_STDOUT, _INPUT_CFG, _RUN_SPIRIT,
-    'spirit_Image-00_Energy-archive.txt', 'spirit_Image-00_Spins-final.ovf',
-    'spirit_Image-00_Spins-initial.ovf'
-]
+_RETLIST = [_SPIRIT_STDOUT, _INPUT_CFG, _RUN_SPIRIT, _ATOM_TYPES]
 
 
 # validators for input ports
@@ -47,6 +45,11 @@ def validate_params(params, _):  # pylint: disable=inconsistent-return-statement
 
 class SpiritCalculation(CalcJob):
     """Run Spirit calculation from user defined inputs."""
+
+    # Default input and output files, will be shows with inputcat/outputcat
+    _DEFAULT_INPUT_FILE = _INPUT_CFG
+    _DEFAULT_OUTPUT_FILE = _SPIRIT_STDOUT
+
     @classmethod
     def define(cls, spec):
         """Define inputs and outputs of the calculation."""
@@ -70,12 +73,16 @@ class SpiritCalculation(CalcJob):
                    default=lambda: Dict(dict={'simulation_method': 'LLG',
                                               'solver': 'Depondt',
                                               'configuration': {},
+                                              'post_processing': '',
                                              }),
                    help="""Dict node that allows to control the spirit run
                         (e.g. simulation_method=LLG, solver=Depondt).
                         The configuration input specifies the input configuration
                         (the default is to start from a random configuration,
                         plus_z is also possible to start from all spins pointing in +z).
+                        The post_processing string is added to the run script and allows
+                        to add e.g. quantities.get_topological_charge(p_state) for the
+                        calculation of the topological charge of a 2D system.
                         """)
         spec.input('structure', valid_type=StructureData, required=True,
                    help='Use a node that specifies the input crystal structure')
@@ -85,7 +92,7 @@ class SpiritCalculation(CalcJob):
                    help="""Use a node that specifies the full pinning information for all spins
                         in the spirit supercell that should be pinned (i.e. take into account
                         the n_basis_cells input from the parameters input node. This is an
-                        ArrayData object which should have the array called pinning which has
+                        ArrayData object which should have the array called 'pinning' which has
                         the columns (i, da, db, dc, Sx, Sy, Sz).
                         See https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html#pinning-a-name-pinning-a
                         for more information on pinning in spirit.
@@ -93,21 +100,33 @@ class SpiritCalculation(CalcJob):
         spec.input('defects', valid_type=ArrayData, required=False,
                    help="""Use a node that specifies the defects information for all spins
                         in the spirit supercell. This is an ArrayData object that should
-                        define the defects in the defects array (column should be i, da, db, dc, itype
+                        define the defects in the 'defects' array (column should be i, da, db, dc, itype
                         where itype<0 means vacancy). The atom type information can be given with the
                         atom_type array in the defects ArrayData that has the columns
                         (iatom  atom_type  mu_s  concentration).
                         See https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html
                         for more information on defects in spirit.
                         """)
+        spec.input('initial_state', valid_type=ArrayData, required=False,
+                   help="""Use a node that specifies the initial directions of all spins
+                        in the spirit supercell. This is an ArrayData object that should
+                        define the 'initial_state' array (columns should be x, y, z).
+                        This overwrites the configuration input!
+                        """)
+        spec.input('add_to_retrieved', valid_type=List, required=False,
+                   help='List of strings specifying additional files that should be retrieved.')
 
         # define output nodes
         spec.output('output_parameters', valid_type=Dict, required=True,
                     help='Parsed values from the spirit stdout, stored as Dict for quick access.')
-        spec.output('magnetization', valid_type=ArrayData, required=True,
+        spec.output('magnetization', valid_type=ArrayData, required=False,
                     help='initial and final magnetization')
-        spec.output('energies', valid_type=ArrayData, required=True,
+        spec.output('energies', valid_type=ArrayData, required=False,
                     help='energy convergence')
+        spec.output('atom_types', valid_type=ArrayData, required=False,
+                    help='list of atom types used in the simulation (-1 indicates vacancies).')
+        spec.output('monte_carlo', valid_type=ArrayData, required=False,
+                    help='sampled quantities from a monte carlo run')
 
         # define exit codes that are used to terminate the SpiritCalculation
         spec.exit_code(100, 'ERROR_MISSING_OUTPUT_FILES', message='Calculation did not produce all expected output files.')
@@ -139,6 +158,11 @@ class SpiritCalculation(CalcJob):
             self.write_defects_file(folder)
 
         ##############################################
+        # CREATE "initial_state.txt" file if needed
+        if 'initial_state' in self.inputs:
+            self.write_initial_configuration(folder)
+
+        ##############################################
         # CREATE "couplings.txt" FILE FROM Jij
         self.write_couplings_file(folder)
 
@@ -160,13 +184,26 @@ class SpiritCalculation(CalcJob):
 
         # this should be a list of the filenames we expect when spirit ran
         # i.e. the files we specify here will be copied back to the file repository
-        retlist = _RETLIST
+        retlist = _RETLIST.copy()
         if 'pinning' in self.inputs:
             # also retreive the pinning file
             retlist += ['pinning.txt']
         if 'defects' in self.inputs:
             # also retreive the defects file
             retlist += ['defects.txt']
+
+        run_opts = self.inputs.run_options.get_dict()
+        if run_opts['simulation_method'].upper() == 'LLG':
+            retlist += ['spirit_Image-00_Energy-archive.txt',
+                        'spirit_Image-00_Spins-final.ovf',
+                        'spirit_Image-00_Spins-initial.ovf']
+        elif run_opts['simulation_method'].upper() == 'MC':
+            retlist += ['output_mc.txt']
+
+        # from the input we can specify additional files that should be retrieved
+        if 'add_to_retrieved' in self.inputs:
+            retlist += self.inputs.add_to_retrieved.get_list()
+
         calcinfo.retrieve_list = retlist
 
         return calcinfo
@@ -248,7 +285,7 @@ class SpiritCalculation(CalcJob):
             defects_info += '\n\n# Disorder type: iatom  atom_type  mu_s  concentration\n'
             defects_info += f'atom_types {len(set(atom_types[:,0]))}\n'
             for itype in atom_types:
-                defects_info += f'{itype[0]:i} {itype[1]:i} {itype[2]:f} {itype[3]:f}\n'
+                defects_info += f'{int(itype[0])} {int(itype[1])} {itype[2]:f} {itype[3]:f}\n'
 
         return defects_info
 
@@ -265,16 +302,23 @@ class SpiritCalculation(CalcJob):
           0  1 0 0  -1
           0  0 1 0  -1
         """
-        # get defects array from the input node
-        defects = self.inputs.defects.get_array('defects')
+        # check if defects list is given
+        if 'defects' not in self.inputs.defects.get_arraynames():
+            # no list of defects specified
+            # instead set n_defects to zero in the spirit defects file
+            with folder.open('defects.txt', 'w') as _f:
+                _f.writelines(['n_defects 0\n'])
+        else:
+            # get defects array from the input node
+            defects = self.inputs.defects.get_array('defects')
 
-        # convert to dataframe for easier writeout
-        defects_df = DataFrame(defects, columns=['i', 'da', 'db', 'dc', 'itype'])
-        defects_df = defects_df.astype({'i':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'itype':'int64'})
+            # convert to dataframe for easier writeout
+            defects_df = DataFrame(defects, columns=['i', 'da', 'db', 'dc', 'itype'])
+            defects_df = defects_df.astype({'i':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'itype':'int64'})
 
-        # Write the defects file in csv format that spirit can understand
-        with folder.open('defects.txt', 'w') as f:
-            defects_df.to_csv(f, sep='\t', index=False, header=False)
+            # Write the defects file in csv format that spirit can understand
+            with folder.open('defects.txt', 'w') as _f:
+                defects_df.to_csv(_f, sep='\t', index=False, header=False)
 
 
     def write_pinning_file(self, folder): # pylint: disable=unused-argument
@@ -300,8 +344,28 @@ class SpiritCalculation(CalcJob):
         pinning_df['Sz'] /= norm
 
         # Write the pinning file in csv format that spirit can understand
-        with folder.open('pinning.txt', 'w') as f:
-            pinning_df.to_csv(f, sep='\t', index=False, header=False)
+        with folder.open('pinning.txt', 'w') as _f:
+            pinning_df.to_csv(_f, sep='\t', index=False, header=False)
+
+
+    def write_initial_configuration(self, folder):
+        """Write the 'initial_state.txt' file that contains the direction for each spin"""
+        # get the initial state (i.e. directions array) from the input node
+        initial_state = self.inputs.initial_state.get_array('initial_state')
+
+        # convert to dataframe for easier writeout
+        initial_state_df = DataFrame(initial_state, columns=['x', 'y', 'z'])
+        initial_state_df = initial_state_df.astype({'x':'float64', 'y':'float64', 'z':'float64'})
+
+        # make sure the pinning direction is normalized
+        norm = np.sqrt(initial_state_df['x']**2 + initial_state_df['y']**2 + initial_state_df['z']**2)
+        initial_state_df['x'] /= norm
+        initial_state_df['y'] /= norm
+        initial_state_df['z'] /= norm
+
+        # Write the pinning file in csv format that spirit can understand
+        with folder.open('initial_state.txt', 'w') as _f:
+            initial_state_df.to_csv(_f, sep='\t', index=False, header=False)
 
 
     def write_couplings_file(self, folder): # pylint: disable=unused-argument
@@ -346,9 +410,9 @@ class SpiritCalculation(CalcJob):
             jijs_df = jijs_df[r <= self.couplings_rcut]
 
         # Write the couplings file in csv format that spirit can understand
-        with folder.open('couplings.txt', 'w') as f:
+        with folder.open('couplings.txt', 'w') as _f:
             # spirit wants to have the data separated in tabs
-            jijs_df.to_csv(f, sep='\t', index=False)
+            jijs_df.to_csv(_f, sep='\t', index=False)
 
 
     def write_run_spirit(self, folder):
@@ -357,51 +421,162 @@ class SpiritCalculation(CalcJob):
         # extract run options from input node
         run_opts = self.inputs.run_options.get_dict()
 
-        # header for run_spirit.py
-        header = """import os
-### Import Spirit modules
-from spirit import state
-from spirit import configuration
-from spirit import simulation
-
-cfgfile = "input_created.cfg"
-quiet = False
-
-with state.State(cfgfile, quiet) as p_state:"""
-
         # now extract information from run_opts
         method = run_opts.get('simulation_method')
         solver = run_opts.get('solver')
         config = run_opts.get('configuration', {})
+        post_proc = run_opts.get('post_processing', '')
 
-        # collect body of run_spirit.py script
-        body = '\n'
+        if method.upper() == 'MC':
+            self.write_mc_script(folder) # A bit unclean but lets separate the code somewhat
+            return
 
-        # set simulation (LLG, MC, ...)
-        # - use method.upper to have case-insensitive input
-        # - remember to end each line with '\n'
-        if method.upper() == 'LLG':
-            body += '    method = simulation.METHOD_LLG\n'
-        # here we need to also allow other methods (HTST,GNEB,...)
+        # write the default spirit input file (e.g. for LLG)
+        script = SpiritScriptBuilder()
+        script.import_modules()
+        with script.state_block():
+            # write out the atom_types (needed for parsing defects)
+            script += 'atom_types = geometry.get_atom_types(p_state)'
+            with script.block("with open('"+_ATOM_TYPES+"', 'w') as _f:"):
+                script += "_f.writelines([f'{i}\\n' for i in atom_types])"
 
-        # set solver (DEPONDT, ...)
-        if solver.upper() == 'DEPONDT':
-            body += '    solver = simulation.SOLVER_DEPONDT # Velocity projection minimiser\n'
-        # here we also need to be able to set the other solvers
+            # deal with the input configuration
+            if 'plus_z' in config and config.get('plus_z', False):
+                script.configuration('plus_z')
+            else:
+                for _ in range(config.get('random', 1)):
+                    script.configuration('random')
 
-        # set configuration (initialize spins in (plus z, ...)
-        if 'plus_z' in config and config.get('plus_z', False):
-            body += '    configuration.plus_z(p_state) # start from all spins pointing in +z\n'
-        # here we should add additional configurations
+            # set an initial state defined for all spins
+            # this overwites the previous configuration setting!
+            if 'initial_state' in self.inputs:
+                script += 'io.image_read(p_state, "initial_state.txt")'
+            script.start_simulation(method, solver)
 
-        # finalize body with starting the spirit simulation
-        body += '    # now run the simulation\n    simulation.start(p_state, method, solver)\n'
+            # maybe add post_processing script
+            if len(post_proc) > 0:
+                script += post_proc
 
         # write run_spirit.py to the folder
         with folder.open(_RUN_SPIRIT, 'w') as f:
-            txt = header + body
+            txt = script.body
             f.write(txt)
 
+
+    def write_mc_script(self, folder):
+        """Write the MC script version of run_spirit.py"""
+        script = SpiritScriptBuilder()
+        script += """
+        import numpy as np
+        from spirit import state
+        from spirit import system
+        from spirit import simulation
+        from spirit import configuration
+        from spirit import parameters
+        from spirit import hamiltonian
+        from spirit import quantities
+        from spirit import geometry
+        from spirit import constants
+        """
+
+        run_opts = self.inputs.run_options.get_dict()
+        mc_configuration = run_opts['mc_configuration']
+
+        keys = ['n_thermalisation', 'n_decorrelation', 'n_samples', 'n_temperatures', 'T_start', 'T_end']
+
+        for k in keys:
+            script += '{:20} = {}'.format(k, mc_configuration[k])
+
+        script += """
+        sample_temperatures     = np.linspace(T_start, T_end, n_temperatures)
+        energy_samples          = []
+        magnetization_samples   = []
+        susceptibility_samples  = []
+        specific_heat_samples   = []
+        binder_cumulant_samples = []
+        """
+
+        with script.state_block():
+            # write out the atom_types (needed for parsing defects)
+            script += 'atom_types = geometry.get_atom_types(p_state)'
+            with script.block("with open('"+_ATOM_TYPES+"', 'w') as _f:"):
+                script += "_f.writelines([f'{i}\\n' for i in atom_types])"
+
+            # get number of spins
+            script += 'NOS = system.get_nos(p_state)'
+
+            # Loop over temperatures
+            with script.block('for iT, T in enumerate(sample_temperatures):'):
+                script += 'parameters.mc.set_temperature(p_state, T)'
+                script.configuration('plus_z')
+                script += """
+                # Cumulative average variables
+                E  = 0
+                E2 = 0
+                M  = 0
+                M2 = 0
+                M4 = 0
+
+                # Thermalisation
+                parameters.mc.set_iterations(p_state, n_thermalisation, n_thermalisation) # We want n_thermalisation iterations and only a single log message
+
+                # Sampling at given temperature
+                parameters.mc.set_iterations(p_state, n_decorrelation*n_samples, n_decorrelation*n_samples) # We want n_decorrelation iterations and only a single log message
+                simulation.start(p_state, simulation.METHOD_MC, single_shot=True) # Start a single-shot MC simulation
+
+                for n in range(n_samples):
+                    # Run decorrelation
+                    for i_decorr in range(n_decorrelation):
+                        simulation.single_shot(p_state) # one MC iteration
+                    # Get energy
+                    E_local = system.get_energy(p_state) / NOS
+                    # Get magnetization
+                    M_local = np.array(quantities.get_magnetization(p_state))
+                    M_local_tot = np.linalg.norm(M_local)
+                    # Add to cumulative averages
+                    E   += E_local
+                    E2  += E_local**2
+                    M   += M_local_tot
+                    M2  += M_local_tot**2
+                    M4  += M_local_tot**4
+
+                # Make sure the MC simulation is not running anymore
+                simulation.stop(p_state)
+
+                # Average over samples
+                E  /= n_samples
+                E2 /= n_samples
+                M  /= n_samples
+                M2 /= n_samples
+                M4 /= n_samples
+
+                # Calculate observables
+                chi = (M2 - np.dot(M, M)) / (constants.k_B * T)
+                c_v = (E2 - E**2) / (constants.k_B * T**2)
+                cumulant = 1 - M4/(3 * M2**2)
+
+                energy_samples.append(E)
+                magnetization_samples.append(M)
+                susceptibility_samples.append(chi)
+                specific_heat_samples.append(c_v)
+                binder_cumulant_samples.append(cumulant)
+                """
+
+        script += """
+        output_mc      = np.zeros((len(sample_temperatures), 6))
+        output_mc[:,0] = sample_temperatures
+        output_mc[:,1] = energy_samples
+        output_mc[:,2] = magnetization_samples
+        output_mc[:,3] = susceptibility_samples
+        output_mc[:,4] = specific_heat_samples
+        output_mc[:,5] = binder_cumulant_samples
+
+        np.savetxt("output_mc.txt", output_mc, header="sample_temperatures, energy_samples, magnetization_samples, susceptibility_samples, specific_heat_samples, binder_cumulant_samples")
+        """
+
+        # write run_spirit.py to the folder
+        with folder.open(_RUN_SPIRIT, 'w') as f:
+            f.write(script.body)
 
 def _modify_line(my_string, new_value):
     """Gets a line and the new parameter value as inputs

@@ -15,7 +15,7 @@ _frame_id_suffix = secrets.token_hex(32)
 # pylint: disable=line-too-long,global-statement
 
 
-def setup(vfr_frame_id=''):
+def setup(vfr_frame_id='', height_px=600, width_percent=100):
     """Create a frame in the jupyter ntoebook to into which the spins are shown."""
     global _vfr_frame_id_mapping, _next_frame_id, _frame_id_suffix
     if vfr_frame_id not in _vfr_frame_id_mapping:
@@ -58,7 +58,9 @@ def setup(vfr_frame_id=''):
                 '''");
         var iframe_url = "https://judftteam.github.io/aiida-spirit/vfr_notebook_view/?origin=" + window.location.origin + "&frame_id='''
                 + vfr_frame_id + '''";
-        frame_wrapper.innerHTML = '<iframe src="' + iframe_url + '" style="width: 100%; height:600px; border: 1px solid black;"></iframe>';
+        frame_wrapper.innerHTML = '<iframe src="' + iframe_url + '" style="width: '''
+                + str(width_percent) + '''%; height:''' + str(height_px) +
+                '''px; border: 1px solid black;"></iframe>';
     </script>
     ''')
 

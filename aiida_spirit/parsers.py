@@ -11,7 +11,7 @@ from aiida.plugins import CalculationFactory
 from aiida.common import exceptions
 from aiida.orm import Dict, ArrayData
 from masci_tools.io.common_functions import search_string
-from .calculations import _RETLIST, _SPIRIT_STDOUT
+from .calculations import _RETLIST, _SPIRIT_STDOUT, _ATOM_TYPES
 
 SpiritCalculation = CalculationFactory('spirit')
 
@@ -52,12 +52,13 @@ class SpiritParser(Parser):
             return self.exit_codes.ERROR_MISSING_OUTPUT_FILES
 
         # parse information from output file (number of iterations, convergence info, ...)
-        output_node, mag, energ = self.parse_retrieved()
-        self.out('output_parameters', output_node)
-        self.out('magnetization', mag)
-        self.out('energies', energ)
+        retrieved_dict = self.parse_retrieved()
+
+        for key, value in retrieved_dict.items():
+            self.out(key, value)
 
         # check consistency of spirit_version_info with the inputs
+        output_node = retrieved_dict['output_parameters']
         if 'pinning' in self.node.inputs:
             version_info = output_node['spirit_version_info']
             if not 'enabled' in version_info['Pinning']:
@@ -69,7 +70,19 @@ class SpiritParser(Parser):
 
         return ExitCode(0)
 
-    def parse_retrieved(self):
+    def _retrieve_if_found(self, filename, *args, **kwargs):
+        """Retrieves a file and loads it with `np.loadtxt`.
+        The `*args` and `**kwargs` are passed to `np.loadtxt`.
+        If the file is not found it returns None."""
+        retrieved = self.retrieved
+        if filename in retrieved.list_object_names():
+            with retrieved.open(filename, 'r') as _f:
+                return np.loadtxt(_f, *args, **kwargs)
+        else:
+            self.logger.info('{} not found!'.format(filename))
+            return None
+
+    def parse_retrieved(self):  # pylint: disable=too-many-locals
         """Parse the output from the retrieved and create aiida nodes"""
 
         retrieved = self.retrieved
@@ -84,32 +97,82 @@ class SpiritParser(Parser):
 
         # parse output files
         self.logger.info('Parsing energy archive')
-        with retrieved.open('spirit_Image-00_Energy-archive.txt') as _f:
-            energ = np.loadtxt(_f, skiprows=1)
+        energ = self._retrieve_if_found('spirit_Image-00_Energy-archive.txt',
+                                        skiprows=1)
+
         self.logger.info('Parsing initial magnetization')
-        with retrieved.open('spirit_Image-00_Spins-initial.ovf') as _f:
-            m_init = np.loadtxt(_f)
+        m_init = self._retrieve_if_found('spirit_Image-00_Spins-initial.ovf')
+
         self.logger.info('Parsing final magnetization')
-        with retrieved.open('spirit_Image-00_Spins-final.ovf') as _f:
-            m_final = np.loadtxt(_f)
+        m_final = self._retrieve_if_found('spirit_Image-00_Spins-final.ovf')
+
+        self.logger.info('Parsing atom types')
+        atyp = self._retrieve_if_found(_ATOM_TYPES)
+
+        self.logger.info('Parsing MC output')
+        out_mc = self._retrieve_if_found('output_mc.txt')
+
+        # Write dictionary of retrieved quantities
+        _retrieved_dict = {'output_parameters': output_node}
 
         # collect arrays in ArrayData
-        mag = ArrayData()
-        mag.set_array(
-            'initial',
-            np.nan_to_num(m_init))  # nan_to_num is needed with defects
-        mag.set_array('final', np.nan_to_num(m_final))
-        mag.extras['description'] = {
-            'initial': 'initial directions of the magnetization vectors',
-            'final': 'final directions of the magnetization vectors',
-        }
-        energies = ArrayData()
-        energies.set_array('energies', energ)
-        energies.extras['description'] = {
-            'energies': 'energy convergence',
-        }
+        if m_init is not None and m_final is not None:
+            mag = ArrayData()
+            mag.set_array(
+                'initial',
+                np.nan_to_num(m_init))  # nan_to_num is needed with defects
+            mag.set_array('final', np.nan_to_num(m_final))
+            mag.extras['description'] = {
+                'initial': 'initial directions of the magnetization vectors',
+                'final': 'final directions of the magnetization vectors',
+            }
+            _retrieved_dict.update({'magnetization': mag})
 
-        return output_node, mag, energies
+        if energ is not None:
+            energies = ArrayData()
+            energies.set_array('energies', energ)
+            energies.extras['description'] = {
+                'energies': 'Energy convergence with iterations.',
+            }
+            _retrieved_dict.update({'energies': energies})
+
+        if atyp is not None:
+            atypes = ArrayData()
+            atypes.set_array('atom_types', atyp)
+            atypes.extras['description'] = {
+                'atom_types': 'list of atom types for all positions',
+            }
+            _retrieved_dict.update({'atom_types': atypes})
+
+        # Only add mc if it is found
+        if out_mc is not None:
+            output_mc = ArrayData()
+
+            # Associante the columns of out_mc with individual arrays
+            array_names = [
+                'temperature', 'energy', 'magnetization', 'susceptibility',
+                'specific_heat', 'binder_cumulant'
+            ]
+            for i, name in enumerate(array_names):
+                output_mc.set_array(name, out_mc[:, i])
+
+            output_mc.extras['description'] = {
+                'temperature':
+                'The temperature at which the sampling was performed',
+                'energy':
+                'The average energy at the sampled temperature',
+                'magnetization':
+                'The average spin direction at the sample temperature',
+                'susceptibility':
+                'The susceptibility at the sampled temperature',
+                'specific_heat':
+                'The specific heat at the sampled temperature',
+                'binder_cumulant':
+                'The binder_cumulant at the sampled temperature',
+            }
+            _retrieved_dict.update({'monte_carlo': output_mc})
+
+        return _retrieved_dict
 
 
 def parse_outfile(txt):

@@ -8,18 +8,19 @@ from ._vfr import setup, update
 from .get_from_remote import list_remote_files, get_file_content_from_remote
 
 
-def init_spinview(vfr_frame_id=''):
+def init_spinview(vfr_frame_id='', height_px=600, width_percent=100):
     """
     Initialize the vfrendering HTML object.
 
     Needs to be called before the show_spins function can set the spins
     :param vfr_frame_id: a string that controls if multiple windows
     should be openend. Use the same string in show_spins to update this.
-    This is not fully implemented yet and does not work in this version.
+    :param height_px: height of the window in pixels
+    :param width_percent: window width in percent of the current width size
     """
 
     # initialize vfrendering HTML object
-    view = setup(vfr_frame_id)
+    view = setup(vfr_frame_id, height_px, width_percent)
 
     return view
 
@@ -37,20 +38,22 @@ def _plot_spins_vfr(  # pylint: disable=too-many-arguments
 
     # set positions and direciton of the spins
     positions = []
-    for iz in range(n_basis_cells[0]):
+    for iz in range(n_basis_cells[2]):
         for iy in range(n_basis_cells[1]):
-            for ix in range(n_basis_cells[2]):
+            for ix in range(n_basis_cells[0]):
                 for p in pos_cell:
                     # set position
                     positions.append(p + ix * cell[0] + iy * cell[1] +
                                      iz * cell[2])
-    # make flattened array
+    # make flattened arrays
     positions = np.array(positions).reshape(-1, 3)
+    directions = np.array(spin_directions).reshape(-1, 3)
 
     # normalize directions
-    directions = np.array(spin_directions).reshape(-1, 3)
-    for ixyz in range(len(directions)):
-        directions[ixyz, :] /= np.linalg.norm(directions[ixyz, :])
+    norm = np.linalg.norm(directions, axis=1)
+    norm[norm == 0] = 1  # prevent divide by zero
+    for ixyz in range(3):
+        directions[:, ixyz] /= norm
 
     # scaling factor for the directions
     directions *= scale_spins
@@ -71,12 +74,13 @@ def _plot_spins_vfr(  # pylint: disable=too-many-arguments
         )
 
 
-def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-arguments
+def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-arguments,too-many-locals, too-many-branches
         spirit_calc,
         show_final_structure=True,
         scale_spins=1.0,
         list_spin_files_on_remote=False,
         use_remote_spins_id=None,
+        mask=None,
         vfr_frame_id=''):
     """
     Update the vfrendering spin view plot with the final or initial spin structure.
@@ -89,6 +93,8 @@ def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-argum
     :param list_spin_files_on_remote: print a list of the available spin image files on the remote folder.
     :param use_remote_spins_id: show neither final nor initial spin structure but show the structure of
         a certain checkpoint (see list_spin_files_on_remote=True output for available checkpoints).
+    :param mask: mask which can be used to hide or rescale spins (mask is multiplied to the spins,
+                 i.e. mask==0 hides a spin, mask>1 enhaces its size).
     :param vfr_frame_id: if given this allows to control into which spinview frame the spins are shown.
         Should be the same as in the init_spinview. This is not fully implemented yet and does not work in this version.
     """
@@ -104,11 +110,40 @@ def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-argum
     pos_cell = np.array([i.position for i in struc.sites])
 
     # get initial or final spin directions
+    if 'magnetization' not in spirit_calc.outputs:
+        if not spirit_calc.is_finished_ok and spirit_calc.is_terminated:
+            raise ValueError('SpiritCalculation did not finish ok.')
+        print(
+            'SpiritCalculation does not have magnetization output node. Cannot plot anything'
+        )
+        return
+
     m = spirit_calc.outputs.magnetization
+    minit = m.get_array('initial')
+    mfinal = m.get_array('final')
     if show_final_structure:
-        m = m.get_array('final')
+        m = mfinal
     else:
-        m = m.get_array('initial')
+        m = minit
+
+    # apply a scaling mask
+    if mask is not None:
+        if m[:, 0].shape != mask.shape:
+            raise ValueError(
+                f'mask array is not of the right shape. Got {mask.shape} but expected {m[:,0].shape}.'
+            )
+        for ixyz in range(3):
+            m[:, ixyz] *= mask
+
+    if 'defects' in spirit_calc.inputs:
+        if 'atom_types' in spirit_calc.outputs:
+            # hide defects
+            atom_types = spirit_calc.outputs.atom_types.get_array('atom_types')
+            m[atom_types < 0] = 0
+        else:
+            # fallback if atom_types are not there
+            # these are the positions where the initial and final spins are the same (hide those if we have defects)
+            m[(minit == mfinal).all(axis=1)] = 0
 
     # print a list of files that are still on the remote and which can be plotted
     if list_spin_files_on_remote or use_remote_spins_id is not None:

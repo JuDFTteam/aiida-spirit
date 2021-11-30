@@ -167,6 +167,12 @@ $(document).ready(function()
             vfr.align_camera([0, 0, -1], [0, 1, 0]);
             vfr.draw();
         });
+        function updateProjection() {
+            var vertical_field_of_view = Number.parseFloat($('#select-projection')[0].value);
+            vfr.set_vertical_field_of_view(vertical_field_of_view);
+            vfr.draw();
+        }
+        $('#select-projection').on('change', updateProjection);
 
         function downloadURI(uri, name) {
             var link = document.createElement("a");
@@ -201,6 +207,7 @@ $(document).ready(function()
         // Visualisation
         updateRenderers();
         updateColormap();
+        updateProjection();
     }
     ).then(function()
     {
