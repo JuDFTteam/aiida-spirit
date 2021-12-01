@@ -184,7 +184,11 @@ class SpiritCalculation(CalcJob):
 
         # this should be a list of the filenames we expect when spirit ran
         # i.e. the files we specify here will be copied back to the file repository
+        # note that the retlist_tmp contains only files which are only needed in parsing
+        # but are then not kept in the file repository (e.g. magnetization arrays which are
+        # stored as numy arrays instead of also keeping the raw text files)
         retlist = _RETLIST.copy()
+        retlist_tmp = []
         if 'pinning' in self.inputs:
             # also retreive the pinning file
             retlist += ['pinning.txt']
@@ -194,17 +198,18 @@ class SpiritCalculation(CalcJob):
 
         run_opts = self.inputs.run_options.get_dict()
         if run_opts['simulation_method'].upper() == 'LLG':
-            retlist += ['spirit_Image-00_Energy-archive.txt',
-                        'spirit_Image-00_Spins-final.ovf',
-                        'spirit_Image-00_Spins-initial.ovf']
+            retlist_tmp += ['spirit_Image-00_Energy-archive.txt',
+                            'spirit_Image-00_Spins-final.ovf',
+                            'spirit_Image-00_Spins-initial.ovf']
         elif run_opts['simulation_method'].upper() == 'MC':
-            retlist += ['output_mc.txt']
+            retlist_tmp += ['output_mc.txt']
 
         # from the input we can specify additional files that should be retrieved
         if 'add_to_retrieved' in self.inputs:
             retlist += self.inputs.add_to_retrieved.get_list()
 
         calcinfo.retrieve_list = retlist
+        calcinfo.retrieve_temporary_list = retlist_tmp
 
         return calcinfo
 
