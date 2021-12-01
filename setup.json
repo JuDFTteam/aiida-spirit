@@ -12,7 +12,7 @@
         "Natural Language :: English",
         "Framework :: AiiDA"
     ],
-    "version": "0.1.0",
+    "version": "0.2.0",
     "entry_points": {
         "aiida.calculations": [
             "spirit = aiida_spirit.calculations:SpiritCalculation"
