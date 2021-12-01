@@ -4,6 +4,7 @@ Parsers provided by aiida_spirit.
 
 Register parsers via the "aiida.parsers" entry point in setup.json.
 """
+import pathlib
 import numpy as np
 from aiida.engine import ExitCode
 from aiida.parsers.parser import Parser
@@ -54,6 +55,14 @@ class SpiritParser(Parser):
         # parse information from output file (number of iterations, convergence info, ...)
         retrieved_dict = self.parse_retrieved()
 
+        # parse files in temporary folder
+        # these files are not kept in the file repository but become numy arrays and are stored as ArrayData output nodes
+        retrieved_temporary_folder = kwargs.get('retrieved_temporary_folder',
+                                                None)
+        if retrieved_temporary_folder is not None:
+            retrieved_dict = self.parse_temporary_retrieved(
+                retrieved_dict, retrieved_temporary_folder)
+
         for key, value in retrieved_dict.items():
             self.out(key, value)
 
@@ -70,17 +79,27 @@ class SpiritParser(Parser):
 
         return ExitCode(0)
 
-    def _retrieve_if_found(self, filename, *args, **kwargs):
-        """Retrieves a file and loads it with `np.loadtxt`.
+    def _parse_if_found(self, filename, *args, folder=None, **kwargs):
+        """Parses a file and loads it with `np.loadtxt`.
         The `*args` and `**kwargs` are passed to `np.loadtxt`.
         If the file is not found it returns None."""
-        retrieved = self.retrieved
-        if filename in retrieved.list_object_names():
-            with retrieved.open(filename, 'r') as _f:
-                return np.loadtxt(_f, *args, **kwargs)
+        if folder is None:
+            folder = self.retrieved
+            if filename in folder.list_object_names():
+                with folder.open(filename, 'r') as _f:
+                    return np.loadtxt(_f, *args, **kwargs)
+            else:
+                return self._file_not_found(filename)
         else:
-            self.logger.info('{} not found!'.format(filename))
-            return None
+            filenames = [f.name for f in folder.glob('*')]
+            if filename in filenames:
+                with (folder / filename).open('r') as _f:
+                    return np.loadtxt(_f, *args, **kwargs)
+            else:
+                return self._file_not_found(filename)
+
+    def _file_not_found(self, filename):
+        self.logger.info('{} not found!'.format(filename))
 
     def parse_retrieved(self):  # pylint: disable=too-many-locals
         """Parse the output from the retrieved and create aiida nodes"""
@@ -96,26 +115,45 @@ class SpiritParser(Parser):
         output_node = Dict(dict=out_dict)
 
         # parse output files
-        self.logger.info('Parsing energy archive')
-        energ = self._retrieve_if_found('spirit_Image-00_Energy-archive.txt',
-                                        skiprows=1)
-
-        self.logger.info('Parsing initial magnetization')
-        m_init = self._retrieve_if_found('spirit_Image-00_Spins-initial.ovf')
-
-        self.logger.info('Parsing final magnetization')
-        m_final = self._retrieve_if_found('spirit_Image-00_Spins-final.ovf')
-
         self.logger.info('Parsing atom types')
-        atyp = self._retrieve_if_found(_ATOM_TYPES)
-
-        self.logger.info('Parsing MC output')
-        out_mc = self._retrieve_if_found('output_mc.txt')
+        atyp = self._parse_if_found(_ATOM_TYPES)
 
         # Write dictionary of retrieved quantities
         _retrieved_dict = {'output_parameters': output_node}
 
         # collect arrays in ArrayData
+        if atyp is not None:
+            atypes = ArrayData()
+            atypes.set_array('atom_types', atyp)
+            atypes.extras['description'] = {
+                'atom_types': 'list of atom types for all positions',
+            }
+            _retrieved_dict.update({'atom_types': atypes})
+
+        return _retrieved_dict
+
+    def parse_temporary_retrieved(self, _retrieved_dict,
+                                  retrieved_temporary_folder):
+        """Parse files that are defined in the retrieve_temporary_list"""
+        retrieved_temporary_folder = pathlib.Path(retrieved_temporary_folder)
+
+        self.logger.info('Parsing energy archive')
+        energ = self._parse_if_found('spirit_Image-00_Energy-archive.txt',
+                                     folder=retrieved_temporary_folder,
+                                     skiprows=1)
+
+        self.logger.info('Parsing initial magnetization')
+        m_init = self._parse_if_found('spirit_Image-00_Spins-initial.ovf',
+                                      folder=retrieved_temporary_folder)
+
+        self.logger.info('Parsing final magnetization')
+        m_final = self._parse_if_found('spirit_Image-00_Spins-final.ovf',
+                                       folder=retrieved_temporary_folder)
+
+        self.logger.info('Parsing MC output')
+        out_mc = self._parse_if_found('output_mc.txt',
+                                      folder=retrieved_temporary_folder)
+
         if m_init is not None and m_final is not None:
             mag = ArrayData()
             mag.set_array(
@@ -135,14 +173,6 @@ class SpiritParser(Parser):
                 'energies': 'Energy convergence with iterations.',
             }
             _retrieved_dict.update({'energies': energies})
-
-        if atyp is not None:
-            atypes = ArrayData()
-            atypes.set_array('atom_types', atyp)
-            atypes.extras['description'] = {
-                'atom_types': 'list of atom types for all positions',
-            }
-            _retrieved_dict.update({'atom_types': atypes})
 
         # Only add mc if it is found
         if out_mc is not None:
