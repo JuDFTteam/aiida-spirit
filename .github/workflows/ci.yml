@@ -93,6 +93,7 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install -e .[docs]
+        pip install reentry
         reentry scan -r aiida
     - name: Build docs
       run: cd docs && make
@@ -110,6 +111,7 @@ jobs:
       run: |
         pip install --upgrade pip
         pip install -e .[pre-commit,docs,testing]
+        pip install reentry
         reentry scan -r aiida
     - name: Run pre-commit
       run: |
