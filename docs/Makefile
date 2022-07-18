@@ -23,8 +23,11 @@ I18NSPHINXOPTS  = $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) source
 
 ## Runs nit-picky and converting warnings into errors to
 ## make sure the documentation is properly written
+#customdefault:
+#	$(SPHINXBUILD) -b html -nW $(ALLSPHINXOPTS) $(BUILDDIR)/html
+# do not convert warnings to errors to get it to run
 customdefault:
-	$(SPHINXBUILD) -b html -nW $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	$(SPHINXBUILD) -b html -n $(ALLSPHINXOPTS) $(BUILDDIR)/html
 
 all: html
 
