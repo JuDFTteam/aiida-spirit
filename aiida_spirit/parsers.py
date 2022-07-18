@@ -30,7 +30,7 @@ class SpiritParser(Parser):
         :param node: ProcessNode of calculation
         :param type node: :class:`aiida.orm.ProcessNode`
         """
-        super(SpiritParser).__init__(node)
+        super(SpiritParser, self).__init__(node)  # pylint: disable=super-with-arguments
         if not issubclass(node.process_class, SpiritCalculation):
             raise exceptions.ParsingError('Can only parse SpiritCalculation')
 
