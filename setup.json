@@ -37,21 +37,18 @@
             "coverage",
             "pytest~=3.6,<5.0.0",
             "pytest-cov",
-            "reentry",
             "spirit"
         ],
         "pre-commit": [
             "astroid<2.5",
             "pre-commit~=2.2",
-            "pylint~=2.5.0",
-            "reentry"
+            "pylint~=2.5.0"
         ],
         "docs": [
             "sphinx",
             "sphinxcontrib-contentui",
             "sphinxcontrib-details-directive; python_version>='3.0'",
-            "sphinx-rtd-theme",
-            "reentry"
+            "sphinx-rtd-theme"
         ]
     }
 }
