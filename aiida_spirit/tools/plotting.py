@@ -78,6 +78,7 @@ def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-argum
         spirit_calc,
         show_final_structure=True,
         scale_spins=1.0,
+        scale_lattice=1.0,
         list_spin_files_on_remote=False,
         use_remote_spins_id=None,
         mask=None,
@@ -90,6 +91,7 @@ def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-argum
     :param spirit_calc: the SpiritCalculation which is supposed to be visualized
     :param show_final_structure: boolean that tells us if the initial or final structure of the spins should be displayed
     :param scale_spins: a scaling factor that can be used to scale the size of the arrows
+    :param scale_lattice: a scaling factor that can be used to scale the spacing of the atoms
     :param list_spin_files_on_remote: print a list of the available spin image files on the remote folder.
     :param use_remote_spins_id: show neither final nor initial spin structure but show the structure of
         a certain checkpoint (see list_spin_files_on_remote=True output for available checkpoints).
@@ -108,6 +110,9 @@ def show_spins(  # pylint: disable=inconsistent-return-statements,too-many-argum
     struc = spirit_calc.inputs.structure
     cell = np.array(struc.cell)
     pos_cell = np.array([i.position for i in struc.sites])
+    # rescale lattice
+    cell *= scale_lattice
+    pos_cell *= scale_lattice
 
     # get initial or final spin directions
     if 'magnetization' not in spirit_calc.outputs:
