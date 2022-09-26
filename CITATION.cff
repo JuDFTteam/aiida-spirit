@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Rüßmann"
+  given-names: "Philipp"
+  orcid: "https://orcid.org/0000-0002-6196-2700"
+- family-names: "Ribas Sobreviela"
+  given-names: "Jordi"
+- family-names: "Sallermann"
+  given-names: "Moritz"
+- family-names: "Hoffmann"
+  given-names: "Markus"
+- family-names: "Rhiem"
+  given-names: "Florian"
+- family-names: "Blügel"
+  given-names: "Stefan"
+  orcid: "https://orcid.org/0000-0001-9987-4733"
+title: "The AiiDA-Spirit Plugin for Automated Spin-Dynamics Simulations and Multi-Scale Modeling Based on First-Principles Calculations"
+version: 0.2.1
+doi: 
+date-released: 2022-07-18
+url: "https://github.com/JuDFTteam/aiida-spirit"
+preferred-citation:
+  type: article
+  authors:
+    - family-names: "Rüßmann"
+      given-names: "Philipp"
+      orcid: "https://orcid.org/0000-0002-6196-2700"
+    - family-names: "Ribas Sobreviela"
+      given-names: "Jordi"
+    - family-names: "Sallermann"
+      given-names: "Moritz"
+    - family-names: "Hoffmann"
+      given-names: "Markus"
+    - family-names: "Rhiem"
+      given-names: "Florian"
+    - family-names: "Blügel"
+      given-names: "Stefan"
+      orcid: "https://orcid.org/0000-0001-9987-4733"
+  doi: "10.3389/fmats.2022.825043"
+  journal: "npj Computational Materials"
+  month: 2
+  title: "The AiiDA-Spirit Plugin for Automated Spin-Dynamics Simulations and Multi-Scale Modeling Based on First-Principles Calculations"
+  volume: 9
+  pages: 825043
+  year: 2022
