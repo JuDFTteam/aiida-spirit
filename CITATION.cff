@@ -17,7 +17,7 @@ authors:
   orcid: "https://orcid.org/0000-0001-9987-4733"
 title: "The AiiDA-Spirit Plugin for Automated Spin-Dynamics Simulations and Multi-Scale Modeling Based on First-Principles Calculations"
 version: 0.2.1
-doi: 
+doi:
 date-released: 2022-07-18
 url: "https://github.com/JuDFTteam/aiida-spirit"
 preferred-citation:
