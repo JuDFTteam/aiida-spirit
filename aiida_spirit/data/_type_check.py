@@ -61,9 +61,10 @@ def validate_array(key, val, len_check=None, minval=None, maxval=None):
         _ = len(val)
         # convert to numpy array
         val = np.array(val)
-    except TypeError:
+    except TypeError as error:
         raise TypeError(
-            f'Array input {key} is not an array-like object ({val}).')
+            f'Array input {key} is not an array-like object ({val}).'
+        ) from error
 
     # check shape of the array
     if len(val) < 1:

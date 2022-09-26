@@ -85,8 +85,8 @@ class SpiritScriptBuilder(PythonScriptBuilder):
         """Set Spirit run method (i.e. LLG, MC)"""
         try:
             return self._method_dict[key.lower()]
-        except KeyError:
-            raise ValueError('Invalid method!')
+        except KeyError as error:
+            raise ValueError('Invalid method!') from error
 
     _solver_dict = {
         'depondt': 'simulation.SOLVER_DEPONDT',
@@ -103,8 +103,8 @@ class SpiritScriptBuilder(PythonScriptBuilder):
         """Set spirit solver (Depodt, VP, ...)"""
         try:
             return self._solver_dict[key.lower()]
-        except KeyError:
-            raise ValueError('Invalid solver!')
+        except KeyError as error:
+            raise ValueError('Invalid solver!') from error
 
     _module_dict = {
         'configuration': 'configuration',
@@ -119,8 +119,8 @@ class SpiritScriptBuilder(PythonScriptBuilder):
         """Import the spirit modules"""
         try:
             return self._module_dict[key.lower()]
-        except KeyError:
-            raise ValueError('Invalid module!')
+        except KeyError as error:
+            raise ValueError('Invalid module!') from error
 
     @staticmethod
     def _dict_to_arg_string(dict):  # pylint: disable=redefined-builtin
