@@ -17,7 +17,7 @@ The aiida-spirit plugin for `AiiDA`_
 
 If you use this plugin for your research, please cite the following work:
 
-.. highlights:: Author Name1, Author Name2, *Paper title*, Jornal Name XXX, YYYY (Year).
+.. highlights:: Rüßmann P, Ribas Sobreviela J, Sallermann M, Hoffmann M, Rhiem F and Blügel S (2022) *The AiiDA-Spirit Plugin for Automated Spin-Dynamics Simulations and Multi-Scale Modeling Based on First-Principles Calculations.* Front. Mater. 9:825043. doi: 10.3389/fmats.2022.825043
 
 If you use AiiDA for your research, please cite the following work:
 
