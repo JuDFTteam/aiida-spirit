@@ -54,7 +54,7 @@ export PATH
 
 If you use AiiDA-Spirit please cite the method paper
  - P. Rüßmann, J. Ribas Sobreviela, M. Sallermann, M. Hoffmann, F. Rhiem, and S. Blügel, *The AiiDA-Spirit Plugin for Automated Spin-Dynamics Simulations and Multi-Scale Modeling Based on First-Principles Calculations*, Front. Mater. **9**, 825043 (2022). [doi: 10.3389/fmats.2022.825043](https://doi.org/10.3389/fmats.2022.825043),
- 
+
  and the latest code release
  - P. Rüßmann, J. Ribas Sobreviela, M. Sallermann, M. Hoffmann, F. Rhiem, and S. Blügel. JuDFTteam/aiida-spirit. Zenodo. [doi: 10.5281/zenodo.8070770](https://doi.org/10.5281/zenodo.8070770).
 
