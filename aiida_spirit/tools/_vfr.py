@@ -6,7 +6,7 @@ Interface to the spirit web view used in the plotting tool.
 import json
 import secrets
 import numpy as np
-from IPython.core.display import display, HTML, Javascript
+from IPython.display import display, HTML, Javascript
 
 _vfr_frame_id_mapping = {}
 _next_frame_id = 1
