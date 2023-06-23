@@ -38,7 +38,7 @@ preferred-citation:
       given-names: "Stefan"
       orcid: "https://orcid.org/0000-0001-9987-4733"
   doi: "10.3389/fmats.2022.825043"
-  journal: "npj Computational Materials"
+  journal: "Front. Mater."
   month: 2
   title: "The AiiDA-Spirit Plugin for Automated Spin-Dynamics Simulations and Multi-Scale Modeling Based on First-Principles Calculations"
   volume: 9
