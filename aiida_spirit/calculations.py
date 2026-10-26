@@ -97,6 +97,22 @@ def validate_params(params, _):  # pylint: disable=inconsistent-return-statement
         return f'Parameters cannot be written as TOML: {err}'
 
 
+def validate_jij_data(jij_data, _):  # pylint: disable=inconsistent-return-statements
+    """Validate the shapes of the arrays in the jij_data input."""
+    names = jij_data.get_arraynames()
+    if 'Jij_expanded' not in names:
+        return 'jij_data needs the array `Jij_expanded`.'
+    n_bonds, n_cols = jij_data.get_shape('Jij_expanded')
+    if 'Jij_tensor' in names:
+        if jij_data.get_shape('Jij_tensor') != (n_bonds, 3, 3):
+            return (f'`Jij_tensor` has shape {jij_data.get_shape("Jij_tensor")}, '
+                    f'expected ({n_bonds}, 3, 3) to match `Jij_expanded`.')
+        if n_cols < 5:
+            return '`Jij_expanded` needs at least the columns i, j, da, db, dc.'
+    elif n_cols < 6:
+        return '`Jij_expanded` needs at least the columns i, j, da, db, dc, J.'
+
+
 class SpiritCalculation(CalcJob):
     """Run Spirit calculation from user defined inputs."""
 
@@ -146,7 +162,19 @@ class SpiritCalculation(CalcJob):
         spec.input('structure', valid_type=StructureData, required=True,
                    help='Use a node that specifies the input crystal structure')
         spec.input('jij_data', valid_type=ArrayData, required=True,
-                   help='Use a node that specifies the full list of pairwise interactions')
+                   validator=validate_jij_data,
+                   help="""ArrayData with the full list of pairwise interactions, one row per listed
+                        bond i -> j (spirit counts each listed bond once, energy in meV per bond:
+                        -n_i^T Jtensor n_j; a bond listed in both directions counts twice).
+                        Array 'Jij_expanded' has the columns (i, j, da, db, dc, J, Dx, Dy, Dz); J and
+                        the DMI vector D are optional if 'Jij_tensor' is given. D is in spirit's
+                        convention, D_x = (Jtensor_yz - Jtensor_zy) / 2, i.e. half the vector of
+                        aiida-kkr's JijData. The optional array 'Jij_tensor' (shape (n, 3, 3), rows
+                        aligned with 'Jij_expanded') gives the full tensor instead; it is split into
+                        J, D and the two-site anisotropy K and overrides the J and D columns.
+                        The optional array 'positions_expanded' (bond vectors) is used by the
+                        couplings_cutoff_radius parameter.
+                        """)
         spec.input('pinning', valid_type=ArrayData, required=False,
                    help="""Use a node that specifies the full pinning information for all spins
                         in the spirit supercell that should be pinned (i.e. take into account
@@ -302,6 +330,8 @@ class SpiritCalculation(CalcJob):
 
         # tables are written to separate files and linked here
         config['hamiltonian']['pairs'] = 'file://couplings.txt'
+        if 'Jij_tensor' in self.inputs.jij_data.get_arraynames():
+            config['hamiltonian']['two_site_anisotropy'] = 'file://two_site_anisotropy.txt'
         if 'pinning' in self.inputs:
             geometry.setdefault('pinning', {})['pinned'] = 'file://pinning.txt'
         if 'defects' in self.inputs:
@@ -403,50 +433,58 @@ class SpiritCalculation(CalcJob):
 
 
     def write_couplings_file(self, folder): # pylint: disable=unused-argument
-        """Write the couplings.txt file that contains the Jij's"""
+        """Write the couplings.txt (exchange, DMI) and, from a full tensor, the
+        two_site_anisotropy.txt file.
+
+        Each row of `Jij_expanded` is one listed bond i -> j (+ da, db, dc). Spirit counts
+        every listed bond once (energy per bond, meV)::
+
+            E_ij = -J n_i.n_j - D.(n_i x n_j) - n_i^T K n_j = -n_i^T Jtensor n_j
+
+        so a bond listed in both directions is counted twice. The rows are passed through
+        unchanged; listing each bond once or twice is the user's convention.
+        """
 
         jij_data = self.inputs.jij_data # Collection of numpy arrays
         jij_expanded = jij_data.get_array('Jij_expanded') # Extracts the Jij_expanded array
+        index_columns = ['i', 'j', 'da', 'db', 'dc']
 
-        # create Dataframe and use either Jijs and DMI vectors or only Jijs if no Dijs are given
-        # maybe we need an option to not use the DMI vector even if they are found?
-        # Convert the data to Pandas Dataframe
-        has_dmi = False
-        if len(jij_expanded[0]) >= 8:
-            # has Dij's
-            # compute magnitude of DMI vector and add after Jij column
-            # Dx, Dy, Dz are only used to get direction
-            jd = np.zeros((len(jij_expanded), 10))
-            jd[:, :6] = jij_expanded[:, :6]
-            jd[:, 6] = np.linalg.norm(jij_expanded[:, 6:9], axis=1)
-            jd[:, 7:10] = jij_expanded[:, 6:9]
-            jijs_df = DataFrame(jd, columns=['i', 'j', 'da', 'db', 'dc', 'Jij', 'Dij', 'Dijx', 'Dijy', 'Dijz'])
-            jijs_df['Dijx'] /= jijs_df['Dij']
-            jijs_df['Dijy'] /= jijs_df['Dij']
-            jijs_df['Dijz'] /= jijs_df['Dij']
-            has_dmi = True
+        two_site = None
+        if 'Jij_tensor' in jij_data.get_arraynames():
+            # split the full tensor into isotropic, antisymmetric (DMI) and symmetric traceless part
+            jij, dij, kij = _split_exchange_tensor(jij_data.get_array('Jij_tensor'))
+            jijs_df = DataFrame(jij_expanded[:, :5], columns=index_columns)
+            jijs_df['Jij'] = jij
+            jijs_df[['Dijx', 'Dijy', 'Dijz']] = dij
+            # Kijzz is left out, spirit fills it in from the vanishing trace
+            two_site = DataFrame(jij_expanded[:, :5], columns=index_columns)
+            two_site[['Kijxx', 'Kijyy', 'Kijyz', 'Kijxz', 'Kijxy']] = np.stack(
+                [kij[:, 0, 0], kij[:, 1, 1], kij[:, 1, 2], kij[:, 0, 2], kij[:, 0, 1]], axis=1)
+        elif len(jij_expanded[0]) >= 9:
+            # columns i j da db dc J Dx Dy Dz; the DMI vector goes to spirit as it is
+            jijs_df = DataFrame(jij_expanded[:, :9], columns=index_columns + ['Jij', 'Dijx', 'Dijy', 'Dijz'])
         elif len(jij_expanded[0]) >= 6:
             # has Jijs
-            jijs_df = DataFrame(jij_expanded[:, :6], columns=['i', 'j', 'da', 'db', 'dc', 'Jij'])
+            jijs_df = DataFrame(jij_expanded[:, :6], columns=index_columns + ['Jij'])
         else:
             # no Jijs found, stop here
             raise ValueError('jij_data invalid')
 
-        if not has_dmi:
-            jijs_df = jijs_df.astype({'i':'int64', 'j':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'Jij':'float64'})
-        else:
-            jijs_df = jijs_df.astype({'i':'int64', 'j':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'Jij':'float64',
-                                      'Dij':'float64', 'Dijx':'float64', 'Dijy':'float64', 'Dijz':'float64'})
+        tables = {'couplings.txt': jijs_df}
+        if two_site is not None:
+            tables['two_site_anisotropy.txt'] = two_site
 
         # cut all couplings that are futher away that the cutoff radius
+        keep = slice(None)
         if self.couplings_rcut is not None:
             r = np.sqrt(np.sum(jij_data.get_array('positions_expanded')**2, axis=1))
-            jijs_df = jijs_df[r <= self.couplings_rcut]
+            keep = r <= self.couplings_rcut
 
-        # Write the couplings file in csv format that spirit can understand
-        with folder.open('couplings.txt', 'w') as _f:
-            # spirit wants to have the data separated in tabs
-            jijs_df.to_csv(_f, sep='\t', index=False)
+        for filename, table in tables.items():
+            table = table[keep].astype({col: 'int64' for col in index_columns})
+            # Write the table in csv format that spirit can understand (tab separated, header line)
+            with folder.open(filename, 'w') as _f:
+                table.to_csv(_f, sep='\t', index=False)
 
 
     def write_run_spirit(self, folder):
@@ -611,6 +649,27 @@ class SpiritCalculation(CalcJob):
         # write run_spirit.py to the folder
         with folder.open(_RUN_SPIRIT, 'w') as f:
             f.write(script.body)
+
+def _split_exchange_tensor(tensor):
+    """Split exchange tensors (shape (n, 3, 3), meV) into J, D and K.
+
+    Convention (energy per listed bond -n_i^T Jtensor n_j, as in spirit)::
+
+        Jtensor = J * 1 + K + [D]_x^T,   [D]_x v = D x v
+
+    so J = tr(Jtensor) / 3, D_x = (Jtensor_yz - Jtensor_zy) / 2 (and cyclic), and
+    K = (Jtensor + Jtensor^T) / 2 - J * 1 (symmetric, traceless).
+    Note: aiida-kkr's JijData stores twice this D vector.
+
+    :returns: J (n,), D (n, 3), K (n, 3, 3)
+    """
+    tensor = np.asarray(tensor, dtype=float)
+    jij = np.trace(tensor, axis1=1, axis2=2) / 3
+    antisym = (tensor - tensor.transpose(0, 2, 1)) / 2
+    dij = np.stack([antisym[:, 1, 2], antisym[:, 2, 0], antisym[:, 0, 1]], axis=1)
+    kij = (tensor + tensor.transpose(0, 2, 1)) / 2 - jij[:, None, None] * np.eye(3)
+    return jij, dij, kij
+
 
 def _get_geometry(structure):
     """Get the geometry entries of the spirit input (bravais_vectors, basis) from the structure"""
