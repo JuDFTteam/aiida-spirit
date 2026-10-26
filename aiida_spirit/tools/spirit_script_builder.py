@@ -148,7 +148,7 @@ class SpiritScriptBuilder(PythonScriptBuilder):
             for val in self._module_dict.values():
                 self += 'from spirit import {}'.format(val)
 
-    def state_block(self, input_file='input_created.cfg'):
+    def state_block(self, input_file='input.toml'):
         """Creates the state_block and thereby creates the p_state"""
         return self.block(
             "with state.State(\"{}\") as p_state:".format(input_file))

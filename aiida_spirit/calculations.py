@@ -5,49 +5,103 @@ Calculations provided by aiida_spirit.
 Register calculations via the "aiida.calculations" entry point in setup.json.
 """
 from os import path  #modification to run test
+import tomllib
+import tomli_w
 import numpy as np
 from pandas import DataFrame
 from aiida.common import datastructures
 from aiida.engine import CalcJob
 from aiida.orm import Dict, StructureData, ArrayData, List
-from .data._formatting_info import _forbidden_keys
-from .data._type_check import verify_input_para  #, validate_input_dict
 from .tools.spirit_script_builder import SpiritScriptBuilder
 
-# this is the template input config file which is read in and changed according to the inputs
-TEMPLATE_PATH = path.join(path.dirname(path.realpath(__file__)),
-                          'data/input_original.cfg')
+# default spirit input (TOML) which is updated with the parameters input node
+DEFAULTS_PATH = path.join(path.dirname(path.realpath(__file__)),
+                          'data/input_defaults.toml')
 
 # define file names
 _RUN_SPIRIT = 'run_spirit.py'  # python file that runs the spirit job through the spirit python API
 _SPIRIT_STDOUT = 'spirit.stdout'  # filename where the stdout of the spirit run is put
-_INPUT_CFG = 'input_created.cfg'  # spirit input file
+_INPUT_TOML = 'input.toml'  # spirit input file
 _ATOM_TYPES = 'atom_types.txt'
 
 # Default retrieve list
-_RETLIST = [_SPIRIT_STDOUT, _INPUT_CFG, _RUN_SPIRIT, _ATOM_TYPES]
+_RETLIST = [_SPIRIT_STDOUT, _INPUT_TOML, _RUN_SPIRIT, _ATOM_TYPES]
+
+# top level sections of the spirit input; plugin-only keys are listed separately
+_TOML_SECTIONS = ('defaults', 'logging', 'geometry', 'hamiltonian', 'method')
+_PLUGIN_KEYS = ('couplings_cutoff_radius',)
+
+# paths of the spirit input that only the plugin sets ('*' matches any method name)
+_FORBIDDEN_PATHS = [
+    ('defaults', 'output'),
+    ('logging', 'output'),
+    ('geometry', 'bravais_lattice'),
+    ('geometry', 'bravais_vectors'),
+    ('geometry', 'bravais_matrix'),
+    ('geometry', 'basis'),
+    ('geometry', 'lattice_constant'),
+    ('geometry', 'pinning', 'pinned'),
+    ('geometry', 'defects'),
+    ('geometry', 'atom_types'),
+    ('hamiltonian', 'pairs'),
+    ('hamiltonian', 'two_site_anisotropy'),
+    ('method', '*', 'output', 'folder'),
+    ('method', '*', 'output', 'file_tag'),
+    ('method', '*', 'max_walltime'),
+]
+
+
+def _flat_paths(dct, prefix=()):
+    """Yield the paths (tuples of keys) to all leaves of a nested dict."""
+    for key, val in dct.items():
+        if isinstance(val, dict) and val:
+            yield from _flat_paths(val, prefix + (key,))
+        else:
+            yield prefix + (key,)
+
+
+def _is_forbidden(key_path):
+    """Check if a key path starts with one of the forbidden paths."""
+    for forbidden in _FORBIDDEN_PATHS:
+        if len(key_path) >= len(forbidden) and all(
+                f in ('*', k) for f, k in zip(forbidden, key_path)):
+            return True
+    return False
+
+
+def _deep_update(base, update):
+    """Recursively update the nested dict `base` with `update` (in place)."""
+    for key, val in update.items():
+        if isinstance(val, dict) and isinstance(base.get(key), dict):
+            _deep_update(base[key], val)
+        else:
+            base[key] = val
+    return base
 
 
 # validators for input ports
 def validate_params(params, _):  # pylint: disable=inconsistent-return-statements
-    """Validate the input parameters."""
-    for key, val in params.get_dict().items():
-        if key not in _forbidden_keys:
-            try:
-                _ = verify_input_para(key, val)
-            except ValueError as err:
-                return f'Parameters validator returned ValueError: {err}'
-            except TypeError as err:
-                return f'Parameters validator returned TypeError: {err}'
-        else:
-            return f'Parameters tries to overwrite an forbidden key: {key}'
+    """Validate the input parameters (nested dict in the structure of the spirit TOML input)."""
+    input_dict = params.get_dict()
+    for key in input_dict:
+        if key not in _TOML_SECTIONS + _PLUGIN_KEYS:
+            return (f'Unknown top level key `{key}` in parameters; expected one of '
+                    f'{_TOML_SECTIONS + _PLUGIN_KEYS} (nested keys of the spirit TOML input).')
+    toml_dict = {k: v for k, v in input_dict.items() if k in _TOML_SECTIONS}
+    for key_path in _flat_paths(toml_dict):
+        if _is_forbidden(key_path):
+            return f'Parameters tries to overwrite a key set by the plugin: {".".join(key_path)}'
+    try:
+        tomli_w.dumps(toml_dict)
+    except TypeError as err:
+        return f'Parameters cannot be written as TOML: {err}'
 
 
 class SpiritCalculation(CalcJob):
     """Run Spirit calculation from user defined inputs."""
 
     # Default input and output files, will be shows with inputcat/outputcat
-    _DEFAULT_INPUT_FILE = _INPUT_CFG
+    _DEFAULT_INPUT_FILE = _INPUT_TOML
     _DEFAULT_OUTPUT_FILE = _SPIRIT_STDOUT
 
     @classmethod
@@ -66,8 +120,13 @@ class SpiritCalculation(CalcJob):
         # put here the input ports (parameters, structure, jij_data, ...)
         spec.input('parameters', valid_type=Dict, required=False,
                    validator=validate_params,
-                   help="""Dict node that allows to control the input parameters for spirit
+                   help="""Dict node that allows to control the input parameters for spirit.
+                        The keys are nested in the structure of the spirit TOML input, e.g.
+                        {'method': {'llg': {'n_iterations': 1000}}, 'geometry': {'n_basis_cells': [10, 10, 1]}}
                         (see https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html).
+                        They are merged over the plugin defaults in `aiida_spirit/data/input_defaults.toml`.
+                        Geometry, coupling tables and output locations are set by the plugin.
+                        The extra key `couplings_cutoff_radius` drops couplings beyond that radius.
                         """)
         spec.input('run_options', valid_type=Dict, required=False,
                    default=lambda: Dict(dict={'simulation_method': 'LLG',
@@ -143,9 +202,9 @@ class SpiritCalculation(CalcJob):
         :return: `aiida.common.datastructures.CalcInfo` instance
         """
         ##############################################
-        # CREATE .cfg FILE FROM DICTIONARY OF SETTINGS/PARAMETERS
-        # from the dictionary given by the AiiDA node, the input.cfg file is created
-        self.write_input_cfg(folder)
+        # CREATE input.toml FILE FROM DICTIONARY OF SETTINGS/PARAMETERS
+        # from the dictionary given by the AiiDA node, the input.toml file is created
+        self.write_input_toml(folder)
 
         ##############################################
         # CREATE "pinning.txt" file if needed
@@ -174,7 +233,7 @@ class SpiritCalculation(CalcJob):
         # FINALLY GIVE THE INFORMATION TO AIIDA
         codeinfo = datastructures.CodeInfo()
         codeinfo.code_uuid = self.inputs.code.uuid
-        codeinfo.withmpi = self.inputs.metadata.options.withmpi
+        codeinfo.withmpi = self.inputs.metadata.options.get('withmpi', False)  # unset by default in aiida-core 2
         codeinfo.stdin_name = _RUN_SPIRIT
         codeinfo.stdout_name = _SPIRIT_STDOUT
 
@@ -214,95 +273,64 @@ class SpiritCalculation(CalcJob):
         return calcinfo
 
 
-    def write_input_cfg(self, folder):
-        """Write the input.cfg file from the parameters input"""
+    def write_input_toml(self, folder):
+        """Write the input.toml file: plugin defaults, updated with the parameters input,
+        plus the geometry, coupling tables and output locations set by the plugin."""
 
-        parameters = self.inputs.parameters
-        input_dict = parameters.get_dict() #(would it be better to use "try, except" ?)
+        input_dict = self.inputs.parameters.get_dict() if 'parameters' in self.inputs else {}
 
         # take out special keywords
         # this is used in the write_couplings_file to cut the couplings beyond a given radius
         # works only if the jij_data has positions_extended
-        self.couplings_rcut = None # pylint: disable=attribute-defined-outside-init
-        if 'couplings_cutoff_radius' in input_dict:
-            self.couplings_rcut = input_dict.pop('couplings_cutoff_radius') # pylint: disable=attribute-defined-outside-init
+        self.couplings_rcut = input_dict.pop('couplings_cutoff_radius', None) # pylint: disable=attribute-defined-outside-init
 
-        # extract structure information
+        with open(DEFAULTS_PATH, 'rb') as _f:
+            config = tomllib.load(_f)
+        _deep_update(config, input_dict)
+
+        # geometry from the StructureData input
         structure = self.inputs.structure
-        if 'boundary_conditions' not in input_dict:
-            # overwrite boundary conditions from pbc of structure
-            # do this only if nothing is given in the input parameters
-            input_dict['boundary_conditions'] = structure.pbc
+        geometry = config['geometry']
+        if 'boundary_conditions' not in input_dict.get('geometry', {}):
+            # boundary conditions from pbc of structure, only if nothing is given in the input parameters
+            geometry['boundary_conditions'] = [int(pbc) for pbc in structure.pbc]
+        geometry.update(_get_geometry(structure))
 
-        # go through the template input config and overwrite values from inputs
-        input_file = []
-        with open(TEMPLATE_PATH, 'r') as f_orig:
-            for line in f_orig:
-                input_file.append(line)
+        # output locations
+        config['defaults'] = {'output': {'file_tag': 'spirit', 'folder': '.'}}
+        config['logging']['output'] = {'folder': '.'}
 
-                if line[0] != '#' or '\n':
-                    # if line is not a comment or line is not empty
-                    # check if the parameter has to be modified and use function to modify line if needed
-                    l_param_value = line.split(' ', 1)
-                    key = l_param_value[0]
-
-                    if key in input_dict:
-                        if key not in _forbidden_keys:
-                            val_str = verify_input_para(key, input_dict[key])
-                            input_file[-1] = _modify_line(line, val_str)
-
-                    ##############################################
-                    # MODIFY "GEOMETRY" SECTION FROM .cfg FILE
-                    # from the StructureData node given as an input, the "GEOMETRY" section is created
-                    if key == 'bravais_lattice':
-                        geometry_string = _get_geometry(structure)
-                        input_file[-1] = geometry_string
-
+        # tables are written to separate files and linked here
+        config['hamiltonian']['pairs'] = 'file://couplings.txt'
         if 'pinning' in self.inputs:
-            # put `pinned_from_file pinning.txt` into the input config to read the pinning info in the spirit run
-            pinning_info = '\n\n# read pinning of spins from file\n'
-            pinning_info += 'pinned_from_file pinning.txt\n'
-            input_file.append(pinning_info)
-
+            geometry.setdefault('pinning', {})['pinned'] = 'file://pinning.txt'
         if 'defects' in self.inputs:
-            # put the information for defects into the config file
-            defects_info = self.get_defects_info()
-            input_file.append(defects_info)
+            geometry['defects'] = 'file://defects.txt'
+            atom_types = self.get_atom_types_table()
+            if atom_types is not None:
+                geometry['atom_types'] = atom_types
 
-        # write new contents to a new file, which will be used for the calculations
-        with folder.open(_INPUT_CFG, 'w') as f_created:
-            f_created.writelines(input_file)
+        with folder.open(_INPUT_TOML, 'w') as _f:
+            _f.write(tomli_w.dumps(config, multiline_strings=True))
 
 
-    def get_defects_info(self):
-        """Get the defects info that is added to the config file"""
-        # add line that specifies the defects file and add the atom_type info to the config file
-        defects_info = '\n\n# read defects from file\n'
-        defects_info += 'defects_from_file defects.txt\n'
-
-        # add atom_types info if given
-        if 'atom_types' in self.inputs.defects.get_arraynames():
-            atom_types = self.inputs.defects.get_array('atom_types')
-        else:
-            atom_types = []
-
-        if len(atom_types) > 0:
-            defects_info += '\n\n# Disorder type: iatom  atom_type  mu_s  concentration\n'
-            defects_info += f'atom_types {len(set(atom_types[:,0]))}\n'
-            for itype in atom_types:
-                defects_info += f'{int(itype[0])} {int(itype[1])} {itype[2]:f} {itype[3]:f}\n'
-
-        return defects_info
+    def get_atom_types_table(self):
+        """Get the atom_types table (i type mu_s c) from the defects input, or None if not given"""
+        if 'atom_types' not in self.inputs.defects.get_arraynames():
+            return None
+        atom_types = self.inputs.defects.get_array('atom_types')
+        if len(atom_types) == 0:
+            return None
+        # input columns: iatom  atom_type  mu_s  concentration
+        rows = [f'{int(t[0])} {int(t[1])} {t[2]:f} {t[3]:f}' for t in atom_types]
+        return '\n'.join(['i type mu_s c'] + rows) + '\n'
 
 
     def write_defects_file(self, folder): # pylint: disable=unused-argument
         """Create the defects.txt file from the defects input array
 
-        We write the `defects.txt` in this format:
-          ### Atom types: type index 0..n or or vacancy (type < 0)
-          ### Specify the number of defects and then the defects in terms of translations and type
-          ### i  da db dc  itype
-          n_defects 3 # this is skipped and all defects that are found in the file are used
+        We write the `defects.txt` in this format (type: atom type index 0..n or vacancy if type < 0):
+          i  da db dc  type
           0  0 0 0  -1
           0  1 0 0  -1
           0  0 1 0  -1
@@ -310,26 +338,27 @@ class SpiritCalculation(CalcJob):
         # check if defects list is given
         if 'defects' not in self.inputs.defects.get_arraynames():
             # no list of defects specified
-            # instead set n_defects to zero in the spirit defects file
+            # instead write a table without rows
             with folder.open('defects.txt', 'w') as _f:
-                _f.writelines(['n_defects 0\n'])
+                _f.writelines(['i da db dc type\n'])
         else:
             # get defects array from the input node
             defects = self.inputs.defects.get_array('defects')
 
             # convert to dataframe for easier writeout
-            defects_df = DataFrame(defects, columns=['i', 'da', 'db', 'dc', 'itype'])
-            defects_df = defects_df.astype({'i':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'itype':'int64'})
+            defects_df = DataFrame(defects, columns=['i', 'da', 'db', 'dc', 'type'])
+            defects_df = defects_df.astype({'i':'int64', 'da':'int64', 'db':'int64', 'dc':'int64', 'type':'int64'})
 
-            # Write the defects file in csv format that spirit can understand
+            # Write the defects file in csv format that spirit can understand (with header line)
             with folder.open('defects.txt', 'w') as _f:
-                defects_df.to_csv(_f, sep='\t', index=False, header=False)
+                defects_df.to_csv(_f, sep='\t', index=False)
 
 
     def write_pinning_file(self, folder): # pylint: disable=unused-argument
         """Create the pinning.txt file from the pinning input array
 
-        We write the `pinning.txt` in this format (i, da, db, dc, Sx, Sy, Sz):
+        We write the `pinning.txt` in this format:
+          i  da db dc  x   y   z
           0  0 0 0  1.0 0.0 0.0
           0  1 0 0  0.0 1.0 0.0
           0  0 1 0  0.0 0.0 1.0
@@ -338,19 +367,19 @@ class SpiritCalculation(CalcJob):
         pinning = self.inputs.pinning.get_array('pinning')
 
         # convert to dataframe for easier writeout
-        pinning_df = DataFrame(pinning, columns=['i', 'da', 'db', 'dc', 'Sx', 'Sy', 'Sz'])
+        pinning_df = DataFrame(pinning, columns=['i', 'da', 'db', 'dc', 'x', 'y', 'z'])
         pinning_df = pinning_df.astype({'i':'int64', 'da':'int64', 'db':'int64', 'dc':'int64',
-                                        'Sx':'float64', 'Sy':'float64', 'Sz':'float64'})
+                                        'x':'float64', 'y':'float64', 'z':'float64'})
 
         # make sure the pinning direction is normalized
-        norm = np.sqrt(pinning_df['Sx']**2 + pinning_df['Sy']**2 + pinning_df['Sz']**2)
-        pinning_df['Sx'] /= norm
-        pinning_df['Sy'] /= norm
-        pinning_df['Sz'] /= norm
+        norm = np.sqrt(pinning_df['x']**2 + pinning_df['y']**2 + pinning_df['z']**2)
+        pinning_df['x'] /= norm
+        pinning_df['y'] /= norm
+        pinning_df['z'] /= norm
 
-        # Write the pinning file in csv format that spirit can understand
+        # Write the pinning file in csv format that spirit can understand (with header line)
         with folder.open('pinning.txt', 'w') as _f:
-            pinning_df.to_csv(_f, sep='\t', index=False, header=False)
+            pinning_df.to_csv(_f, sep='\t', index=False)
 
 
     def write_initial_configuration(self, folder):
@@ -583,50 +612,16 @@ class SpiritCalculation(CalcJob):
         with folder.open(_RUN_SPIRIT, 'w') as f:
             f.write(script.body)
 
-def _modify_line(my_string, new_value):
-    """Gets a line and the new parameter value as inputs
-    and returns the line with the new parameter"""
-
-    splitted = my_string.split(' ', 1)
-    cnt = 0
-    for element in splitted[1]:
-        if element == ' ':
-            cnt += 1
-        else:
-            break
-    whitespace_count = cnt + 1
-    splitted[1] = new_value
-    ret_str = splitted[0] + whitespace_count*' ' + splitted[1] + '\n'
-    return ret_str
-
-
 def _get_geometry(structure):
-    """Get the geometry string from the structure"""
+    """Get the geometry entries of the spirit input (bravais_vectors, basis) from the structure"""
 
-    # bravais lattice using bravais vectors
+    # bravais vectors in Angstrom; lattice_constant is fixed to 1 so that they are not rescaled
     cell = np.array(structure.cell)
 
     # transformation matrix to relative coordinates
     U2rel = np.linalg.inv(cell.transpose())
 
-    # bravais vectors as strings
-    sv = ''
-    for element in cell:
-        string_v = ' '.join(map(str, element))
-        sv += string_v + '\n'
+    # sites in unit cell, in relative coordinates, folded back to the unit cell
+    basis = [(np.dot(U2rel, site.position) % 1).tolist() for site in structure.sites]
 
-    # sites in unit cell
-    num_sites = len(structure.sites)
-    sites_pos = ''
-    for site in structure.sites:
-        pos = site.position
-        # transform positions to relative coordinates
-        pos_rel = np.dot(U2rel, pos)
-        pos_rel = pos_rel%1 # fold back to unit cell
-        string_pos = ' '.join(map(str, pos_rel))
-        sites_pos += string_pos + '\n'
-
-    # collect string that defines the geometry
-    geometry_string = 'bravais_vectors\n' + sv + '\n' + 'basis\n' + str(num_sites) + '\n' + sites_pos
-
-    return geometry_string
+    return {'lattice_constant': 1.0, 'bravais_vectors': cell.tolist(), 'basis': basis}

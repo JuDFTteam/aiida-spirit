@@ -1,0 +1,152 @@
+# Default Spirit input written by aiida-spirit (TOML format of Spirit >= develop b3b94c2a).
+#
+# The `parameters` input node is merged over this file (nested keys, e.g.
+# {'method': {'llg': {'n_iterations': 1000}}}); see `SpiritCalculation.define`.
+# Values are those of the plugin's former legacy template `input_original.cfg`,
+# converted with `spirit.legacy.convert_config_to_toml`; the GNEB section is written
+# by hand, because that converter fills it from the LLG parameters.
+#
+# Keys owned by the plugin (geometry, coupling tables, output locations) are not set
+# here; they are filled in by `SpiritCalculation` and may not be overwritten.
+
+[geometry]
+boundary_conditions = [1, 1, 1]
+mu_s = 2.0
+n_basis_cells = [5, 5, 5]
+
+[hamiltonian]
+anisotropy = { magnitude = 0.0, normal = [0.0, 0.0, 1.0] }
+cubic_anisotropy = { magnitude = 0.0 }
+external_field = { direction = [0.0, 0.0, 1.0], magnitude = 0.0 }
+ddi_method = 'none'
+
+[logging]
+log_console_level = 5
+log_file_level = 4
+log_to_console = true
+log_to_file = true
+save_input_final = false
+save_input_initial = false
+save_neighbours_final = false
+save_neighbours_initial = false
+save_positions_final = false
+save_positions_initial = false
+
+[method.llg]
+beta = 0.1
+damping = 0.3
+dt = 0.001
+force_convergence = 1e-06
+max_walltime = '0:0:0'
+n_iterations = 200000
+n_iterations_amortize = 1
+n_iterations_log = 2000
+seed = 20006
+spin_current_model = 'monolayer'
+spin_current_vector = { direction = [1.0, 0.0, 0.0], magnitude = 0.0 }
+temperature = 0.0
+temperature_gradient = { direction = [1.0, 0.0, 0.0], magnitude = 0.0 }
+
+[method.llg.output]
+any = true
+configuration_archive = false
+configuration_filetype = 'ovf_text'
+configuration_step = true
+# the parser reads the energy archive with a single header line
+energy_add_readability_lines = false
+energy_archive = true
+energy_divide_by_nspins = true
+energy_spin_resolved = false
+energy_step = false
+final = true
+initial = true
+
+[method.mc]
+max_walltime = '0:0:0'
+n_iterations = 2000000
+n_iterations_amortize = 1
+n_iterations_log = 2000
+seed = 20006
+temperature = 0.0
+
+[method.mc.metropolis]
+acceptance_ratio = 0.5
+cone_angle = 30.0
+random_sample = true
+step = 'cone'
+use_adaptive_cone = true
+
+[method.mc.output]
+any = true
+configuration_archive = false
+configuration_filetype = 'ovf_text'
+configuration_step = true
+energy_add_readability_lines = true
+energy_archive = true
+energy_divide_by_nspins = true
+energy_spin_resolved = false
+energy_step = false
+final = true
+initial = true
+
+[method.gneb]
+force_convergence = 1e-07
+max_walltime = '0:0:0'
+n_energy_interpolations = 10
+n_iterations = 200000
+n_iterations_amortize = 1
+n_iterations_log = 200
+spring_constant = 1.0
+
+[method.gneb.output]
+any = true
+chain_filetype = 'ovf_text'
+chain_step = false
+energies_add_readability_lines = true
+energies_divide_by_nspins = true
+energies_interpolated = true
+energies_step = false
+final = true
+initial = false
+
+[method.mmf]
+force_convergence = 1e-07
+max_walltime = '0:0:0'
+n_iterations = 200000
+n_iterations_amortize = 1
+n_iterations_log = 200
+n_mode_follow = 0
+n_modes = 10
+
+[method.mmf.output]
+any = true
+configuration_archive = true
+configuration_filetype = 'ovf_text'
+configuration_step = false
+energy_add_readability_lines = true
+energy_archive = true
+energy_divide_by_nspins = true
+energy_step = false
+final = true
+initial = false
+
+[method.ema]
+amplitude = 1.0
+frequency = 0.02
+max_walltime = '0:0:0'
+n_iterations = 200000
+n_iterations_log = 200
+n_mode_follow = 0
+n_modes = 10
+sparse = false
+
+[method.ema.output]
+any = false
+configuration_archive = true
+configuration_step = false
+energy_archive = true
+energy_divide_by_nspins = true
+energy_spin_resolved = false
+energy_step = false
+final = false
+initial = false

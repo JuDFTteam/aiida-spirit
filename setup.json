@@ -28,7 +28,8 @@
         "aiida-core>=1.1.0,<3.0.0",
         "numpy",
         "pandas",
-        "masci-tools"
+        "masci-tools",
+        "tomli-w"
     ],
     "extras_require": {
         "testing": [
@@ -50,5 +51,6 @@
             "sphinxcontrib-details-directive; python_version>='3.0'",
             "sphinx-rtd-theme"
         ]
-    }
+    },
+    "python_requires": ">=3.11"
 }
