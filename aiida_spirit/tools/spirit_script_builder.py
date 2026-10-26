@@ -92,7 +92,7 @@ class SpiritScriptBuilder(PythonScriptBuilder):
         'depondt': 'simulation.SOLVER_DEPONDT',
         'heun': 'simulation.SOLVER_HEUN',
         'sib': 'simulation.SOLVER_SIB',
-        'rk4': 'simulation.SOLVER_SIB',
+        'rk4': 'simulation.SOLVER_RK4',
         'vp': 'simulation.SOLVER_VP',
         'vp_oso': 'simulation.SOLVER_VP_OSO',
         'lbfgs_oso': 'simulation.SOLVER_LBFGS_OSO',

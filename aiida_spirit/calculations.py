@@ -591,16 +591,18 @@ class SpiritCalculation(CalcJob):
 
                 # Thermalisation
                 parameters.mc.set_iterations(p_state, n_thermalisation, n_thermalisation) # We want n_thermalisation iterations and only a single log message
+                simulation.start(p_state, simulation.METHOD_MC, simulation.MC_ALGORITHM_METROPOLIS) # runs the n_thermalisation iterations
 
                 # Sampling at given temperature
                 parameters.mc.set_iterations(p_state, n_decorrelation*n_samples, n_decorrelation*n_samples) # We want n_decorrelation iterations and only a single log message
-                simulation.start(p_state, simulation.METHOD_MC, single_shot=True) # Start a single-shot MC simulation
+                simulation.start(p_state, simulation.METHOD_MC, simulation.MC_ALGORITHM_METROPOLIS, single_shot=True) # Start a single-shot MC simulation
 
                 for n in range(n_samples):
                     # Run decorrelation
                     for i_decorr in range(n_decorrelation):
                         simulation.single_shot(p_state) # one MC iteration
-                    # Get energy
+                    # Get energy (update first, get_energy may return a stale value)
+                    system.update_energy(p_state)
                     E_local = system.get_energy(p_state) / NOS
                     # Get magnetization
                     M_local = np.array(quantities.get_magnetization(p_state))
