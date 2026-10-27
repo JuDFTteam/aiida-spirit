@@ -70,11 +70,11 @@ class SpiritParser(Parser):
         output_node = retrieved_dict['output_parameters']
         if 'pinning' in self.node.inputs:
             version_info = output_node['spirit_version_info']
-            if not 'enabled' in version_info['Pinning']:
+            if 'not enabled' in version_info['Pinning']:
                 return self.exit_codes.ERROR_SPIRIT_CODE_INCOMPATIBLE
         if 'defects' in self.node.inputs:
             version_info = output_node['spirit_version_info']
-            if not 'enabled' in version_info['Defects']:
+            if 'not enabled' in version_info['Defects']:
                 return self.exit_codes.ERROR_SPIRIT_CODE_INCOMPATIBLE
 
         return ExitCode(0)
@@ -97,6 +97,23 @@ class SpiritParser(Parser):
                     return np.loadtxt(_f, *args, **kwargs)
             else:
                 return self._file_not_found(filename)
+
+    def _parse_energy(self, filename, folder):
+        """Parse a spirit energy file into an array (one row per saved iteration).
+        Header lines and the separator lines (readability option) are skipped and
+        the column separators `|` are ignored. Returns None if the file is not found."""
+        path = folder / filename
+        if not path.exists():
+            return self._file_not_found(filename)
+        rows = []
+        for line in path.read_text().replace('|', ' ').splitlines():
+            try:
+                row = [float(val) for val in line.split()]
+            except ValueError:
+                continue
+            if row:
+                rows.append(row)
+        return np.atleast_2d(np.array(rows))
 
     def _file_not_found(self, filename):
         self.logger.info('{} not found!'.format(filename))
@@ -138,9 +155,8 @@ class SpiritParser(Parser):
         retrieved_temporary_folder = pathlib.Path(retrieved_temporary_folder)
 
         self.logger.info('Parsing energy archive')
-        energ = self._parse_if_found('spirit_Image-00_Energy-archive.txt',
-                                     folder=retrieved_temporary_folder,
-                                     skiprows=1)
+        energ = self._parse_energy('spirit_Image-00_Energy-archive.txt',
+                                   retrieved_temporary_folder)
 
         self.logger.info('Parsing initial magnetization')
         m_init = self._parse_if_found('spirit_Image-00_Spins-initial.ovf',
