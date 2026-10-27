@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
 """pytest fixtures for simplified testing."""
-from __future__ import absolute_import
+import shutil
 import pytest
-pytest_plugins = ['aiida.manage.tests.pytest_fixtures']
+pytest_plugins = ['aiida.tools.pytest_fixtures']
 
 
 @pytest.fixture(scope='function', autouse=True)
-def clear_database_auto(clear_database):  # pylint: disable=unused-argument
+def clear_database_auto(aiida_profile_clean):  # pylint: disable=unused-argument
     """Automatically clear database in between tests."""
 
 
 @pytest.fixture(scope='function')
-def spirit_code(aiida_local_code_factory):
-    """Get a spirit code.
-    """
-    return aiida_local_code_factory(executable='python', entry_point='spirit')
+def spirit_code(aiida_code_installed):
+    """Get a spirit code (the python interpreter, which runs the generated run_spirit.py)."""
+    return aiida_code_installed(filepath_executable=shutil.which('python'), default_calc_job_plugin='spirit')
