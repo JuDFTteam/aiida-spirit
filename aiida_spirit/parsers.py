@@ -221,54 +221,40 @@ class SpiritParser(Parser):
         return _retrieved_dict
 
 
+def _runtime(line):
+    """Runtime string and seconds from the 'Total duration' line"""
+    t_str = line.split()[2]
+    hours, minutes, seconds = (float(i) for i in t_str.split(':'))
+    return {'runtime': t_str, 'runtime_sec': hours * 3600 + minutes * 60 + seconds}
+
+
+# search string in the spirit stdout -> function that turns the found line into output entries
+_OUTFILE_ENTRIES = {
+    'Total duration': _runtime,
+    'Iterations / sec': lambda line: {'it_per_s': float(line.split()[-1])},
+    'Simulated time': lambda line: {'simulation_time': float(line.split()[-2]),
+                                    'simulation_time_unit': line.split()[-1]},
+    'Number of  Errors': lambda line: {'num_errors': int(line.split()[-1])},
+    'Number of Warnings': lambda line: {'num_warnings': int(line.split()[-1])},
+    'Terminated': lambda line: {'simulation_mode': line.split()[-3]},
+    'Solver:': lambda line: {'solver': line.split()[-1]},
+}
+
+
 def parse_outfile(txt):
-    """parse the spirit output file"""
+    """parse the spirit output file
+
+    A line that cannot be parsed (e.g. garbled by output of a post-processing script
+    interleaved with spirit's log) is skipped instead of failing the whole parsing."""
 
     out_dict = {}
-
-    itmp = search_string('Total duration', txt)
-    if itmp >= 0:
-        t_str = txt[itmp].split()[2]
-        tmp = [float(i) for i in t_str.split(':')]
-        t_sec = tmp[0] * 3600 + tmp[1] * 60 + tmp[2]
-        out_dict['runtime'] = t_str
-        out_dict['runtime_sec'] = t_sec
-
-    itmp = search_string('Iterations / sec', txt)
-    if itmp >= 0:
-        tmp = txt[itmp].split()[-1]
-        it_per_s = float(tmp)
-        out_dict['it_per_s'] = it_per_s
-
-    itmp = search_string('Simulated time', txt)
-    if itmp >= 0:
-        tmp = txt[itmp].split()
-        sim_time = float(tmp[-2])
-        sim_time_unit = tmp[-1]
-        out_dict['simulation_time'] = sim_time
-        out_dict['simulation_time_unit'] = sim_time_unit
-
-    itmp = search_string('Number of  Errors', txt)
-    if itmp >= 0:
-        tmp = txt[itmp].split()
-        num_errors = int(tmp[-1])
-        out_dict['num_errors'] = num_errors
-
-    itmp = search_string('Number of Warnings', txt)
-    if itmp >= 0:
-        tmp = txt[itmp].split()
-        num_warn = int(tmp[-1])
-        out_dict['num_warnings'] = num_warn
-
-    itmp = search_string('Terminated', txt)
-    if itmp >= 0:
-        tmp = txt[itmp].split()
-        out_dict['simulation_mode'] = tmp[-3]
-
-    itmp = search_string('Solver:', txt)
-    if itmp >= 0:
-        tmp = txt[itmp].split()
-        out_dict['solver'] = tmp[-1]
+    for search, get_entries in _OUTFILE_ENTRIES.items():
+        itmp = search_string(search, txt)
+        if itmp >= 0:
+            try:
+                out_dict.update(get_entries(txt[itmp]))
+            except (ValueError, IndexError):
+                out_dict.setdefault('unparsed_lines', []).append(txt[itmp].strip())
 
     # parse information on the spirit executable (i.e. check parallelization and enabled features)
     spirit_version_info = {}
@@ -279,9 +265,7 @@ def parse_outfile(txt):
         itmp = search_string(key, txt)
         if itmp >= 0:
             found_str = txt[itmp].replace('==========', '').replace('  ', '')
-            if found_str[0] == ' ':
-                found_str = found_str[1:-1]
-            spirit_version_info[key] = found_str
+            spirit_version_info[key] = found_str.strip()
     out_dict['spirit_version_info'] = spirit_version_info
 
     return out_dict

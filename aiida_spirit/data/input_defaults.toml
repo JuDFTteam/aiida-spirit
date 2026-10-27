@@ -12,6 +12,7 @@
 [geometry]
 boundary_conditions = [1, 1, 1]
 mu_s = 2.0
+spin_qn = 1
 n_basis_cells = [5, 5, 5]
 
 [hamiltonian]
@@ -19,6 +20,11 @@ anisotropy = { magnitude = 0.0, normal = [0.0, 0.0, 1.0] }
 cubic_anisotropy = { magnitude = 0.0 }
 external_field = { direction = [0.0, 0.0, 1.0], magnitude = 0.0 }
 ddi_method = 'none'
+ddi_n_periodic_images = [4, 4, 4]
+ddi_pb_zero_padding = true
+ddi_radius = 0.0
+# chirality of DM vectors, used only with neighbour shells (the plugin gives pairs)
+dmi_chirality = 0
 
 [logging]
 log_console_level = 5
@@ -90,13 +96,17 @@ final = true
 initial = true
 
 [method.gneb]
+equilibrium_delta_Rx_left = 1.0
+equilibrium_delta_Rx_right = 1.0
 force_convergence = 1e-07
 max_walltime = '0:0:0'
 n_energy_interpolations = 10
 n_iterations = 200000
 n_iterations_amortize = 1
+moving_endpoints = false
 n_iterations_log = 200
 spring_constant = 1.0
+translating_endpoints = false
 
 [method.gneb.output]
 any = true
@@ -126,6 +136,7 @@ configuration_step = false
 energy_add_readability_lines = true
 energy_archive = true
 energy_divide_by_nspins = true
+energy_spin_resolved = false
 energy_step = false
 final = true
 initial = false
