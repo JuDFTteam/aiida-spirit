@@ -314,7 +314,10 @@ def test_spirit_calc_with_param(spirit_code):
     this actually runs spirit and therefore needs
     to have spirit installed in the python environment.
 
-    This test runs a spirit calculation with an external field and a small temperature
+    This test runs a spirit calculation with an external field and a small temperature,
+    starting along the field: the order along z has to survive the 10 K noise. (From a random
+    start the whole ferromagnet would first have to turn into the 2 T field, which at damping 0.3
+    takes far more than these iterations.)
     """
     pytest.importorskip('spirit')
 
@@ -340,17 +343,21 @@ def test_spirit_calc_with_param(spirit_code):
         'method': {
             'llg': {
                 'temperature': 10.0,  # 10 K temperature noise
-                'n_iterations': 20000,  # limit the number of iterations
+                'n_iterations': 5000,  # limit the number of iterations
             }
         },
     })
     inputs['parameters'] = parameters
 
     # run options input dict
-    inputs['run_options'] = Dict(dict={
-        'simulation_method': 'LLG',
-        'solver': 'Depondt',
-    })
+    inputs['run_options'] = Dict(
+        dict={
+            'simulation_method': 'LLG',
+            'solver': 'Depondt',
+            'configuration': {
+                'plus_z': True
+            },
+        })
 
     # first a dry run
     inputs['metadata']['dry_run'] = True
@@ -363,15 +370,15 @@ def test_spirit_calc_with_param(spirit_code):
     assert node.is_finished_ok
 
     # check consistency of the output files
-    spins_final = check_outcome(result, threshold=0.10)
+    spins_final = check_outcome(result, threshold=0.10, random_start=False)
     mag_mean = np.mean(spins_final, axis=0)
     print(mag_mean)
-    assert mag_mean[0] < 0.25
-    assert mag_mean[1] < 0.25
+    assert abs(mag_mean[0]) < 0.25
+    assert abs(mag_mean[1]) < 0.25
     assert mag_mean[2] > 0.80
 
 
-def check_outcome(result, threshold=1e-5):
+def check_outcome(result, threshold=1e-5, random_start=True):
     """check the result of a spirit calculation
     Checks if retrieved is there and if the output inside of the retreived makes sense"""
 
@@ -403,7 +410,10 @@ def check_outcome(result, threshold=1e-5):
     spins_initial = result['magnetization'].get_array('initial')
     var_initial = np.std(spins_initial, axis=0).max()
     print('std initial', var_initial)
-    assert var_initial > 0.4
+    if random_start:
+        assert var_initial > 0.4
+    else:
+        assert var_initial < 1e-8
 
     spins_final = result['magnetization'].get_array('final')
     var_final = np.std(spins_final, axis=0).max()
