@@ -36,19 +36,21 @@ def LLG_runs(spirit_code):
     # prepare parameters
     output_contents = ''
     for i in range(0, 1051, 50):
-        parameters = Dict(
-            dict={
-                # temperature noise (in K)
-                'llg_temperature': i,
-                # external field of 0.005 T
-                'external_field_magnitude': 0.005,
-                # external field points in z direction
-                'external_field_normal': [0.0, 0.0, 1.0],
-                # change spin moment to have the right size for Fe
-                'mu_s': [2.2],
-                # limit the number of iterations
-                'llg_n_iterations': 200000
-            })
+        # (nested keys of the spirit TOML input, merged over aiida_spirit/data/input_defaults.toml)
+        parameters = Dict({
+            # change spin moment to have the right size for Fe
+            'geometry': {'mu_s': 2.2},
+            # external field of 5 mT in z direction
+            'hamiltonian': {'external_field': {'magnitude': 0.005, 'direction': [0.0, 0.0, 1.0]}},
+            'method': {
+                'llg': {
+                    # temperature noise (in K)
+                    'temperature': i,
+                    # limit the number of iterations
+                    'n_iterations': 200000,
+                }
+            },
+        })
         inputs['parameters'] = parameters
 
         # Note: in order to submit your calculation to the aiida daemon, do:

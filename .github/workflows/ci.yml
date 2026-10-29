@@ -10,52 +10,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.7", "3.8", "3.9", "3.10"]
-        aiida: [{version: 'aiida-core==1.6.8', name: '1.6.8'}, {version: 'aiida-core==2.0.1', name: '2.0.1'}]
+        python-version: ["3.11", "3.12", "3.13"]
+        aiida: [{version: 'aiida-core~=2.9.0', name: '2.9'}]
         masci-tools: [{version: 'masci-tools', name: ''}]
         allowed-to-fail: [false]
-        backend: ['django']
         include:
-          # for python 3.9 we also test with the latest aiida-core version and the latest version of masci-tools
-          - python-version: 3.9
+          # also test with the latest aiida-core and masci-tools versions
+          - python-version: "3.12"
             aiida: {version: 'git+https://github.com/aiidateam/aiida-core.git@main', name: 'latest'}
             masci-tools: {version: 'git+https://github.com/JuDFTteam/masci-tools.git@develop', name: '-masci-develop'}
             allowed-to-fail: true
-          - python-version: 3.9
-            aiida: {version: 'aiida-core==1.6.8', name: '1.6.8'}
-            masci-tools: {version: 'git+https://github.com/JuDFTteam/masci-tools.git@develop', name: '-masci-develop'}
-            allowed-to-fail: true
-        exclude:
-          # aiida-core>=2.0 needs at least python 3.8
-          - python-version: 3.7
-            aiida: {version: 'aiida-core==2.0.1', name: '2.0.1'}
-            masci-tools: {version: 'masci-tools', name: ''}
-            allowed-to-fail: false
 
-    services:
-      postgres:
-        image: postgres:10
-        env:
-          POSTGRES_DB: test_${{ matrix.backend }}
-          POSTGRES_PASSWORD: ''
-          POSTGRES_HOST_AUTH_METHOD: trust
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-      rabbitmq:
-        image: rabbitmq:latest
-        ports:
-          - 5672:5672
+    # the tests use a temporary sqlite profile without broker (aiida.tools.pytest_fixtures);
+    # the two tests that run spirit are skipped (spirit develop, which reads TOML input, is not on PyPI)
+    continue-on-error: ${{ matrix.allowed-to-fail }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
@@ -65,8 +39,6 @@ jobs:
         pip install ${{ matrix.aiida.version }}
         pip install ${{ matrix.masci-tools.version }}
         pip install .[testing]
-        pip install reentry
-        reentry scan
         pip freeze
 
     - name: Run test suite
@@ -84,17 +56,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v2
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.8
+        python-version: "3.12"
     - name: Install python dependencies
       run: |
         pip install --upgrade pip
         pip install -e .[docs]
-        pip install reentry
-        reentry scan -r aiida
     - name: Build docs
       run: cd docs && make
 
@@ -102,17 +72,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v2
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
       with:
-        python-version: 3.8
+        python-version: "3.12"
     - name: Install python dependencies
       run: |
         pip install --upgrade pip
         pip install -e .[pre-commit,docs,testing]
-        pip install reentry
-        reentry scan -r aiida
     - name: Run pre-commit
       run: |
         pre-commit install

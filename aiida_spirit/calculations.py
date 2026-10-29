@@ -413,23 +413,29 @@ class SpiritCalculation(CalcJob):
 
 
     def write_initial_configuration(self, folder):
-        """Write the 'initial_state.txt' file that contains the direction for each spin"""
+        """Write the 'initial_state.txt' file (OVF 2.0 text format) with the direction of each spin"""
         # get the initial state (i.e. directions array) from the input node
-        initial_state = self.inputs.initial_state.get_array('initial_state')
+        initial_state = np.array(self.inputs.initial_state.get_array('initial_state'), dtype=float)
 
-        # convert to dataframe for easier writeout
-        initial_state_df = DataFrame(initial_state, columns=['x', 'y', 'z'])
-        initial_state_df = initial_state_df.astype({'x':'float64', 'y':'float64', 'z':'float64'})
+        # make sure the directions are normalized
+        initial_state /= np.linalg.norm(initial_state, axis=1)[:, None]
 
-        # make sure the pinning direction is normalized
-        norm = np.sqrt(initial_state_df['x']**2 + initial_state_df['y']**2 + initial_state_df['z']**2)
-        initial_state_df['x'] /= norm
-        initial_state_df['y'] /= norm
-        initial_state_df['z'] /= norm
-
-        # Write the pinning file in csv format that spirit can understand
+        # header as in the OVF files written by spirit; spirit takes the number of spins from the nodes
+        header = '\n'.join([
+            '# OOMMF OVF 2.0', '# Segment count: 1', '# Begin: Segment', '# Begin: Header',
+            '# Title: initial state written by aiida-spirit',
+            '# valuedim: 3', '# valueunits: none none none', '# valuelabels: spin_x spin_y spin_z',
+            '# meshunit: nm', '# meshtype: rectangular',
+            '# xbase: 0', '# ybase: 0', '# zbase: 0',
+            '# xstepsize: 1', '# ystepsize: 1', '# zstepsize: 1',
+            '# xmin: 0', '# ymin: 0', '# zmin: 0',
+            f'# xmax: {len(initial_state)}', '# ymax: 1', '# zmax: 1',
+            f'# xnodes: {len(initial_state)}', '# ynodes: 1', '# znodes: 1',
+            '# End: Header', '# Begin: Data Text',
+        ])
         with folder.open('initial_state.txt', 'w') as _f:
-            initial_state_df.to_csv(_f, sep='\t', index=False, header=False)
+            np.savetxt(_f, initial_state, fmt='%.15f', header=header, comments='',
+                       footer='# End: Data Text\n# End: Segment', delimiter='  ')
 
 
     def write_couplings_file(self, folder): # pylint: disable=unused-argument
