@@ -23,7 +23,8 @@ from aiida.storage.sqlite_temp import SqliteTempBackend
 
 # Load a temporary in-memory profile, so that the documentation builds without an AiiDA installation
 # (load_documentation_profile of aiida-core 1 does not exist anymore)
-load_profile(SqliteTempBackend.create_profile('aiida-spirit-docs'), allow_switch=True)
+load_profile(SqliteTempBackend.create_profile('aiida-spirit-docs'),
+             allow_switch=True)
 
 # If we are not on READTHEDOCS load the Sphinx theme manually
 if not os.environ.get('READTHEDOCS', None):

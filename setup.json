@@ -39,6 +39,7 @@
         ],
         "pre-commit": [
             "pre-commit>=2.2",
+            "setuptools",
             "pylint>=2.5.0"
         ],
         "docs": [
