@@ -29,7 +29,7 @@ _RETLIST = [_SPIRIT_STDOUT, _INPUT_TOML, _RUN_SPIRIT, _ATOM_TYPES]
 
 # top level sections of the spirit input; plugin-only keys are listed separately
 _TOML_SECTIONS = ('defaults', 'logging', 'geometry', 'hamiltonian', 'method')
-_PLUGIN_KEYS = ('couplings_cutoff_radius',)
+_PLUGIN_KEYS = ('couplings_cutoff_radius', )
 
 # paths of the spirit input that only the plugin sets ('*' matches any method name)
 _FORBIDDEN_PATHS = [
@@ -55,9 +55,9 @@ def _flat_paths(dct, prefix=()):
     """Yield the paths (tuples of keys) to all leaves of a nested dict."""
     for key, val in dct.items():
         if isinstance(val, dict) and val:
-            yield from _flat_paths(val, prefix + (key,))
+            yield from _flat_paths(val, prefix + (key, ))
         else:
-            yield prefix + (key,)
+            yield prefix + (key, )
 
 
 def _is_forbidden(key_path):
@@ -85,12 +85,15 @@ def validate_params(params, _):  # pylint: disable=inconsistent-return-statement
     input_dict = params.get_dict()
     for key in input_dict:
         if key not in _TOML_SECTIONS + _PLUGIN_KEYS:
-            return (f'Unknown top level key `{key}` in parameters; expected one of '
-                    f'{_TOML_SECTIONS + _PLUGIN_KEYS} (nested keys of the spirit TOML input).')
+            return (
+                f'Unknown top level key `{key}` in parameters; expected one of '
+                f'{_TOML_SECTIONS + _PLUGIN_KEYS} (nested keys of the spirit TOML input).'
+            )
     toml_dict = {k: v for k, v in input_dict.items() if k in _TOML_SECTIONS}
     for key_path in _flat_paths(toml_dict):
         if _is_forbidden(key_path):
-            return f'Parameters tries to overwrite a key set by the plugin: {".".join(key_path)}'
+            dotted = '.'.join(key_path)
+            return f'Parameters tries to overwrite a key set by the plugin: {dotted}'
     try:
         tomli_w.dumps(toml_dict)
     except TypeError as err:
@@ -104,8 +107,9 @@ def validate_jij_data(jij_data, _):  # pylint: disable=inconsistent-return-state
         return 'jij_data needs the array `Jij_expanded`.'
     n_bonds, n_cols = jij_data.get_shape('Jij_expanded')
     if 'Jij_tensor' in names:
-        if jij_data.get_shape('Jij_tensor') != (n_bonds, 3, 3):
-            return (f'`Jij_tensor` has shape {jij_data.get_shape("Jij_tensor")}, '
+        tensor_shape = jij_data.get_shape('Jij_tensor')
+        if tensor_shape != (n_bonds, 3, 3):
+            return (f'`Jij_tensor` has shape {tensor_shape}, '
                     f'expected ({n_bonds}, 3, 3) to match `Jij_expanded`.')
         if n_cols < 5:
             return '`Jij_expanded` needs at least the columns i, j, da, db, dc.'
@@ -438,7 +442,7 @@ class SpiritCalculation(CalcJob):
                        footer='# End: Data Text\n# End: Segment', delimiter='  ')
 
 
-    def write_couplings_file(self, folder): # pylint: disable=unused-argument
+    def write_couplings_file(self, folder): # pylint: disable=unused-argument,too-many-locals
         """Write the couplings.txt (exchange, DMI) and, from a full tensor, the
         two_site_anisotropy.txt file.
 

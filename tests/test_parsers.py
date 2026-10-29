@@ -27,6 +27,9 @@ def test_parse_outfile():
     assert out['simulation_mode'] == 'LLG'
     assert out['num_errors'] == 0 and out['num_warnings'] == 0
     assert 'simulation_time' not in out
-    assert out['unparsed_lines'] == ['Simulated time:       0.01100E_CHECK -1.201734330353473']
+    assert out['unparsed_lines'] == [
+        'Simulated time:       0.01100E_CHECK -1.201734330353473'
+    ]
     assert out['spirit_version_info']['Pinning'] == 'Pinning is not enabled'
-    assert out['spirit_version_info']['Version'] == 'Version:2.2.0'  # double spaces are removed
+    assert out['spirit_version_info'][
+        'Version'] == 'Version:2.2.0'  # double spaces are removed

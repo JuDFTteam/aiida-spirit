@@ -5,6 +5,10 @@ max-line-length = 125
 disable = [
     "too-many-ancestors",
     "invalid-name",
+    # checks added to pylint after this code was written
+    "consider-using-f-string",
+    "unspecified-encoding",
+    "too-many-positional-arguments",
 ]
 
 [tool.pytest.ini_options]

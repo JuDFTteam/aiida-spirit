@@ -225,19 +225,34 @@ def _runtime(line):
     """Runtime string and seconds from the 'Total duration' line"""
     t_str = line.split()[2]
     hours, minutes, seconds = (float(i) for i in t_str.split(':'))
-    return {'runtime': t_str, 'runtime_sec': hours * 3600 + minutes * 60 + seconds}
+    return {
+        'runtime': t_str,
+        'runtime_sec': hours * 3600 + minutes * 60 + seconds
+    }
 
 
 # search string in the spirit stdout -> function that turns the found line into output entries
 _OUTFILE_ENTRIES = {
     'Total duration': _runtime,
-    'Iterations / sec': lambda line: {'it_per_s': float(line.split()[-1])},
-    'Simulated time': lambda line: {'simulation_time': float(line.split()[-2]),
-                                    'simulation_time_unit': line.split()[-1]},
-    'Number of  Errors': lambda line: {'num_errors': int(line.split()[-1])},
-    'Number of Warnings': lambda line: {'num_warnings': int(line.split()[-1])},
-    'Terminated': lambda line: {'simulation_mode': line.split()[-3]},
-    'Solver:': lambda line: {'solver': line.split()[-1]},
+    'Iterations / sec': lambda line: {
+        'it_per_s': float(line.split()[-1])
+    },
+    'Simulated time': lambda line: {
+        'simulation_time': float(line.split()[-2]),
+        'simulation_time_unit': line.split()[-1]
+    },
+    'Number of  Errors': lambda line: {
+        'num_errors': int(line.split()[-1])
+    },
+    'Number of Warnings': lambda line: {
+        'num_warnings': int(line.split()[-1])
+    },
+    'Terminated': lambda line: {
+        'simulation_mode': line.split()[-3]
+    },
+    'Solver:': lambda line: {
+        'solver': line.split()[-1]
+    },
 }
 
 
@@ -254,7 +269,8 @@ def parse_outfile(txt):
             try:
                 out_dict.update(get_entries(txt[itmp]))
             except (ValueError, IndexError):
-                out_dict.setdefault('unparsed_lines', []).append(txt[itmp].strip())
+                out_dict.setdefault('unparsed_lines',
+                                    []).append(txt[itmp].strip())
 
     # parse information on the spirit executable (i.e. check parallelization and enabled features)
     spirit_version_info = {}

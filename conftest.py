@@ -13,4 +13,5 @@ def clear_database_auto(aiida_profile_clean):  # pylint: disable=unused-argument
 @pytest.fixture(scope='function')
 def spirit_code(aiida_code_installed):
     """Get a spirit code (the python interpreter, which runs the generated run_spirit.py)."""
-    return aiida_code_installed(filepath_executable=shutil.which('python'), default_calc_job_plugin='spirit')
+    return aiida_code_installed(filepath_executable=shutil.which('python'),
+                                default_calc_job_plugin='spirit')

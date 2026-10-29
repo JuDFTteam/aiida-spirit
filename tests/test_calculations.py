@@ -19,18 +19,49 @@ def test_input_para_validator():
     """Check that the parameters validator rejects invalid input and accepts nested TOML keys"""
 
     for params in [
-            {'llg_n_iterations': 17},  # legacy flat key
-            {'hamiltonian': {'pairs': 'file://x.txt'}},  # set by the plugin
-            {'geometry': {'bravais_lattice': 'sc'}},  # set by the plugin
-            {'method': {'mc': {'output': {'folder': 'x'}}}},  # set by the plugin
-            {'method': {'llg': {'n_iterations': None}}},  # not TOML
+        {
+            'llg_n_iterations': 17
+        },  # legacy flat key
+        {
+            'hamiltonian': {
+                'pairs': 'file://x.txt'
+            }
+        },  # set by the plugin
+        {
+            'geometry': {
+                'bravais_lattice': 'sc'
+            }
+        },  # set by the plugin
+        {
+            'method': {
+                'mc': {
+                    'output': {
+                        'folder': 'x'
+                    }
+                }
+            }
+        },  # set by the plugin
+        {
+            'method': {
+                'llg': {
+                    'n_iterations': None
+                }
+            }
+        },  # not TOML
     ]:
         builder = CalculationFactory('spirit').get_builder()
         with pytest.raises(ValueError):
             builder.parameters = Dict(params)
 
     builder = CalculationFactory('spirit').get_builder()
-    builder.parameters = Dict({'method': {'llg': {'n_iterations': 17}}, 'couplings_cutoff_radius': 2.5})
+    builder.parameters = Dict({
+        'method': {
+            'llg': {
+                'n_iterations': 17
+            }
+        },
+        'couplings_cutoff_radius': 2.5
+    })
 
 
 def _dry_run_folder(node):
@@ -42,7 +73,8 @@ def _read_table(path):
     """Read a tab separated spirit table (with header line) into a dict of columns"""
     lines = path.read_text().splitlines()
     header = lines[0].split()
-    data = np.array([line.split() for line in lines[1:]], dtype=float).reshape(-1, len(header))
+    data = np.array([line.split() for line in lines[1:]],
+                    dtype=float).reshape(-1, len(header))
     return {key: data[:, i] for i, key in enumerate(header)}
 
 
@@ -69,7 +101,10 @@ def test_spirit_calc_dry_run(spirit_code):
     assert config['hamiltonian']['pairs'] == 'file://couplings.txt'
     assert 'two_site_anisotropy' not in config['hamiltonian']
     assert config['geometry']['basis'] == [[0.0, 0.0, 0.0]]
-    assert config['defaults']['output'] == {'file_tag': 'spirit', 'folder': '.'}
+    assert config['defaults']['output'] == {
+        'file_tag': 'spirit',
+        'folder': '.'
+    }
     couplings = _read_table(folder / 'couplings.txt')
     assert list(couplings) == ['i', 'j', 'da', 'db', 'dc', 'Jij']
     assert len(couplings['Jij']) == 700
@@ -102,9 +137,15 @@ def test_spirit_dmi_pinning_defects_dry_run(spirit_code):
         },
         'hamiltonian': {
             # external magnetic field in T (point in +z direction)
-            'external_field': {'magnitude': 0.5, 'direction': [0.0, 0.0, 1.0]},
+            'external_field': {
+                'magnitude': 0.5,
+                'direction': [0.0, 0.0, 1.0]
+            },
             # single-ion anisotropy in meV
-            'anisotropy': {'magnitude': 1., 'normal': [0.0, 0.0, 1.0]},
+            'anisotropy': {
+                'magnitude': 1.,
+                'normal': [0.0, 0.0, 1.0]
+            },
         },
         'method': {
             'llg': {
@@ -171,18 +212,25 @@ def test_spirit_dmi_pinning_defects_dry_run(spirit_code):
     geometry = config['geometry']
     assert geometry['pinning']['pinned'] == 'file://pinning.txt'
     assert geometry['defects'] == 'file://defects.txt'
-    assert geometry['atom_types'].splitlines() == ['i type mu_s c', '0 0 2.200000 0.800000', '0 1 1.100000 0.200000']
+    assert geometry['atom_types'].splitlines() == [
+        'i type mu_s c', '0 0 2.200000 0.800000', '0 1 1.100000 0.200000'
+    ]
     assert geometry['mu_s'] == 2.2
     assert config['method']['llg']['n_iterations'] == 50000
     assert config['method']['llg']['damping'] == 0.3  # from the plugin defaults
-    assert list(_read_table(folder / 'pinning.txt')) == ['i', 'da', 'db', 'dc', 'x', 'y', 'z']
-    assert list(_read_table(folder / 'defects.txt')) == ['i', 'da', 'db', 'dc', 'type']
+    assert list(_read_table(
+        folder / 'pinning.txt')) == ['i', 'da', 'db', 'dc', 'x', 'y', 'z']
+    assert list(_read_table(folder /
+                            'defects.txt')) == ['i', 'da', 'db', 'dc', 'type']
     couplings = _read_table(folder / 'couplings.txt')
-    assert list(couplings) == ['i', 'j', 'da', 'db', 'dc', 'Jij', 'Dijx', 'Dijy', 'Dijz']
-    assert np.allclose(couplings['Dijz'], [0, 0, 6.0])  # DMI vector as given, not normalized
+    assert list(couplings) == [
+        'i', 'j', 'da', 'db', 'dc', 'Jij', 'Dijx', 'Dijy', 'Dijz'
+    ]
+    assert np.allclose(couplings['Dijz'],
+                       [0, 0, 6.0])  # DMI vector as given, not normalized
 
 
-def test_spirit_tensor_dry_run(spirit_code):
+def test_spirit_tensor_dry_run(spirit_code):  # pylint: disable=too-many-locals
     """Dry run with a full exchange tensor: check the couplings and two-site anisotropy tables"""
     inputs = prepare_test_inputs(os.path.join(TEST_DIR, 'input_files'))
     inputs['code'] = spirit_code
@@ -190,11 +238,15 @@ def test_spirit_tensor_dry_run(spirit_code):
 
     # J = 1.7, D = (0.3, -0.5, 0.8), K symmetric traceless (meV); Jtensor = J 1 + K + [D]_x^T
     jij, dmi = 1.7, np.array([0.3, -0.5, 0.8])
-    kij = np.array([[-0.4, 0.05, -0.15], [0.05, 0.1, 0.25], [-0.15, 0.25, 0.3]])
-    d_cross = np.array([[0, -dmi[2], dmi[1]], [dmi[2], 0, -dmi[0]], [-dmi[1], dmi[0], 0]])
+    kij = np.array([[-0.4, 0.05, -0.15], [0.05, 0.1, 0.25], [-0.15, 0.25,
+                                                             0.3]])
+    d_cross = np.array([[0, -dmi[2], dmi[1]], [dmi[2], 0, -dmi[0]],
+                        [-dmi[1], dmi[0], 0]])
     tensor = jij * np.eye(3) + kij + d_cross.T
     jij_data = ArrayData()
-    jij_data.set_array('Jij_expanded', np.array([[0, 0, 1, 0, 0], [0, 0, 0, 1, 0]], dtype=float))
+    jij_data.set_array(
+        'Jij_expanded',
+        np.array([[0, 0, 1, 0, 0], [0, 0, 0, 1, 0]], dtype=float))
     jij_data.set_array('Jij_tensor', np.stack([tensor, 2 * tensor]))
     inputs['jij_data'] = jij_data
 
@@ -202,15 +254,25 @@ def test_spirit_tensor_dry_run(spirit_code):
     folder = _dry_run_folder(node)
     with (folder / 'input.toml').open('rb') as _f:
         config = tomllib.load(_f)
-    assert config['hamiltonian']['two_site_anisotropy'] == 'file://two_site_anisotropy.txt'
+    assert config['hamiltonian'][
+        'two_site_anisotropy'] == 'file://two_site_anisotropy.txt'
 
     couplings = _read_table(folder / 'couplings.txt')
     assert np.allclose(couplings['Jij'], [jij, 2 * jij])
-    assert np.allclose(np.stack([couplings['Dijx'], couplings['Dijy'], couplings['Dijz']], axis=1),
-                       [dmi, 2 * dmi])
+    assert np.allclose(
+        np.stack([couplings['Dijx'], couplings['Dijy'], couplings['Dijz']],
+                 axis=1), [dmi, 2 * dmi])
     two_site = _read_table(folder / 'two_site_anisotropy.txt')
-    assert list(two_site) == ['i', 'j', 'da', 'db', 'dc', 'Kijxx', 'Kijyy', 'Kijyz', 'Kijxz', 'Kijxy']
-    for key, (i, j) in {'Kijxx': (0, 0), 'Kijyy': (1, 1), 'Kijyz': (1, 2), 'Kijxz': (0, 2), 'Kijxy': (0, 1)}.items():
+    assert list(two_site) == [
+        'i', 'j', 'da', 'db', 'dc', 'Kijxx', 'Kijyy', 'Kijyz', 'Kijxz', 'Kijxy'
+    ]
+    for key, (i, j) in {
+            'Kijxx': (0, 0),
+            'Kijyy': (1, 1),
+            'Kijyz': (1, 2),
+            'Kijxz': (0, 2),
+            'Kijxy': (0, 1)
+    }.items():
         assert np.allclose(two_site[key], [kij[i, j], 2 * kij[i, j]])
 
     # a tensor array that does not match Jij_expanded is rejected
@@ -265,10 +327,15 @@ def test_spirit_calc_with_param(spirit_code):
     }
     # prepare parameters
     parameters = Dict({
-        'geometry': {'mu_s': 2.2},  # change spin moment to have the right size for Fe
+        'geometry': {
+            'mu_s': 2.2
+        },  # change spin moment to have the right size for Fe
         'hamiltonian': {
             # external field of 2 T in z direction
-            'external_field': {'magnitude': 2.0, 'direction': [0.0, 0.0, 1.0]},
+            'external_field': {
+                'magnitude': 2.0,
+                'direction': [0.0, 0.0, 1.0]
+            },
         },
         'method': {
             'llg': {
@@ -323,6 +390,7 @@ def check_outcome(result, threshold=1e-5):
     assert len(txt) > 100
 
     # check some lines in the spirit std output
+    errors = warnings = None
     for line in txt:
         if 'Number of  Errors:' in line:
             errors = line.split()[-1]

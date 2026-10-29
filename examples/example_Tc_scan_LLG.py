@@ -39,9 +39,16 @@ def LLG_runs(spirit_code):
         # (nested keys of the spirit TOML input, merged over aiida_spirit/data/input_defaults.toml)
         parameters = Dict({
             # change spin moment to have the right size for Fe
-            'geometry': {'mu_s': 2.2},
+            'geometry': {
+                'mu_s': 2.2
+            },
             # external field of 5 mT in z direction
-            'hamiltonian': {'external_field': {'magnitude': 0.005, 'direction': [0.0, 0.0, 1.0]}},
+            'hamiltonian': {
+                'external_field': {
+                    'magnitude': 0.005,
+                    'direction': [0.0, 0.0, 1.0]
+                }
+            },
             'method': {
                 'llg': {
                     # temperature noise (in K)

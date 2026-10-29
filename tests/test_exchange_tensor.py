@@ -13,7 +13,8 @@ E_SPIRIT = -1.2017343304
 
 def _cross_matrix(vec):
     """Matrix [v]_x with [v]_x w = v x w"""
-    return np.array([[0, -vec[2], vec[1]], [vec[2], 0, -vec[0]], [-vec[1], vec[0], 0]])
+    return np.array([[0, -vec[2], vec[1]], [vec[2], 0, -vec[0]],
+                     [-vec[1], vec[0], 0]])
 
 
 def test_split_exchange_tensor():
