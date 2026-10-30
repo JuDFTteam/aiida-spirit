@@ -17,7 +17,7 @@ _frame_id_suffix = secrets.token_hex(32)
 
 def setup(vfr_frame_id='', height_px=600, width_percent=100):
     """Create a frame in the jupyter ntoebook to into which the spins are shown."""
-    global _vfr_frame_id_mapping, _next_frame_id, _frame_id_suffix
+    global _next_frame_id
     if vfr_frame_id not in _vfr_frame_id_mapping:
         _vfr_frame_id_mapping[vfr_frame_id] = 'vfr_frame_wrapper_' + str(
             _next_frame_id) + '_' + _frame_id_suffix
@@ -67,7 +67,6 @@ def setup(vfr_frame_id='', height_px=600, width_percent=100):
 
 def update(positions, directions, rectilinear=True, vfr_frame_id=''):
     """Update the spins in the frame."""
-    global _vfr_frame_id_mapping
     vfr_frame_id = _vfr_frame_id_mapping[vfr_frame_id]
     n_cells = positions.shape[:-1][::-1]
     n = int(np.prod(positions.shape[:-1]))

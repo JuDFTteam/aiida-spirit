@@ -12,24 +12,27 @@ This page contains a simple tutorial example for your code. The source code can 
 Step 1 - prepare parameters
 ---------------------------
 
-The parameters for the simulation have to be given as *key*, *value* pairs inside an `AiiDA Dict <https://aiida.readthedocs.io/projects/aiida-core/en/latest/topics/data_types.html#core-data-types>`_. These set up the spirit calculation, define the Hamiltonian and allow to include external parameters like applying an external magnetic field. Information on what paramters can be set are listed on the `spirit documentation <https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html>`_. Note that the aiida-spirit plugin uses python booleans (`True/False`) for logical inputs and includes some type checking. Some parameters are set automatically by the plugin (e.g. the structure and coupling constants) and cannot be set in the input parameters.
+The parameters for the simulation are given inside an `AiiDA Dict <https://aiida.readthedocs.io/projects/aiida-core/en/latest/topics/data_types.html#core-data-types>`_ whose nested keys follow the structure of the spirit TOML input file (sections ``geometry``, ``hamiltonian``, ``method``, ``logging``). They set up the spirit calculation, define the Hamiltonian and allow to include external parameters like applying an external magnetic field. The parameters that can be set are listed in the `spirit documentation <https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html>`_. The given values are merged over the plugin defaults in ``aiida_spirit/data/input_defaults.toml``. Some parameters are set automatically by the plugin (the structure, the coupling tables and the output locations) and cannot be set in the input parameters.
+
+Since version 0.3 the plugin writes spirit's TOML input and needs a spirit version that reads it (the ``develop`` branch); the flat keys of the legacy ``.cfg`` input (e.g. ``llg_temperature``) are rejected.
 
 ::
 
 	# prepare parameters
-	parameters = Dict(
-	    dict={
-	        # temperature noise (in K)
-	        'llg_temperature': 50,
-	        # external field of 5 mT
-	        'external_field_magnitude': 0.005,
-	        # external field points in z direction
-	        'external_field_normal': [0.0, 0.0, 1.0],
-	        # change spin moment to have the right size for Fe
-	        'mu_s': 2.2,
-	        # limit the number of iterations
-	        'llg_n_iterations': 2000
-	    })
+	parameters = Dict({
+	    # change spin moment to have the right size for Fe
+	    'geometry': {'mu_s': 2.2},
+	    # external field of 5 mT in z direction
+	    'hamiltonian': {'external_field': {'magnitude': 0.005, 'direction': [0.0, 0.0, 1.0]}},
+	    'method': {
+	        'llg': {
+	            # temperature noise (in K)
+	            'temperature': 50,
+	            # limit the number of iterations
+	            'n_iterations': 2000,
+	        }
+	    },
+	})
 	inputs['parameters'] = parameters
 
 
@@ -57,14 +60,21 @@ Step 3 - create jij inputs
 
 The interaction pairs are given to the spirit input file using a separate file. The jij inputs by default are also the ones corresponding to the Fe bcc, so in this example we don't need to pass them.
 For other cases, we will need to pass a valid `AiiDA ArrayData <https://aiida.readthedocs.io/projects/aiida-core/en/latest/topics/data_types.html#arraydata>`_ containing the interaction pairs.
-The array for the couplings needs to have all **unique pairs** and needs to have the columns ``i, j, da, db, dc, Jij [, Dij, Dijx, Dijy, Dijz]`` (in that order) where the names refer to the nomenclature used for the ``heisenberg_pairs`` couplings input of the `Spirit input file specification <https://spirit-docs.readthedocs.io/en/latest/core/docs/Input.html#heisenberg-hamiltonian-a-name-heisenberg-a>`_
-If DMI interactions are used if the columns ``Dij, Dijx, Dijy, Dijz`` are present in the ``jij_data`` input array. If you want to use only ``Jij`` couplings the ``jij_data`` input array must not contain the DMI columns.
+Each row of the array ``Jij_expanded`` is one bond from atom ``i`` to atom ``j`` in the unit cell shifted by ``(da, db, dc)``, with the columns ``i, j, da, db, dc, Jij [, Dx, Dy, Dz]`` (in that order; energies in meV). The DMI vector is used if the three columns ``Dx, Dy, Dz`` are present.
+
+Spirit counts every listed bond once, with the energy
+
+.. math:: E_{ij} = -J_{ij}\,\mathbf n_i\cdot\mathbf n_j - \mathbf D_{ij}\cdot(\mathbf n_i\times\mathbf n_j) - \mathbf n_i^{\mathsf T} K_{ij}\,\mathbf n_j = -\mathbf n_i^{\mathsf T}\mathcal J_{ij}\,\mathbf n_j ,
+
+so a bond listed in both directions is counted twice. The rows are passed to spirit as they are.
+
+Instead of ``Jij`` and the DMI vector, the full exchange tensor can be given as an additional array ``Jij_tensor`` (shape ``(n, 3, 3)``, one tensor per row of ``Jij_expanded``; then ``Jij_expanded`` only needs the five index columns). The plugin splits it into the isotropic part :math:`J=\tfrac13\operatorname{tr}\mathcal J`, the DMI vector :math:`D_x=\tfrac12(\mathcal J_{yz}-\mathcal J_{zy})` (and cyclic) and the symmetric traceless two-site anisotropy :math:`K=\tfrac12(\mathcal J+\mathcal J^{\mathsf T})-J\,\mathbb 1`. Note that the DMI vector of aiida-kkr's ``JijData`` is twice this one.
 
 In the example below we use a ``numpy`` array with the data to create the ``jij_data`` input node. **The ``jij_data`` ArrayData needs to set the `Jij_expanded` array which is used in the spirit calculation! No other name is allowed.**
 ::
 
 	# create jij inputs
-        # the jijs_expanded should have the columns i, j, da, db, dc, Jij [, Dij, Dijx, Dijy, Dijz]
+        # the jijs_expanded should have the columns i, j, da, db, dc, Jij [, Dx, Dy, Dz]
         # here we omit the DMI vectors and only use Jij couplings
 	jijs_expanded = np.array([
             [0, 1, 0, 0, 0, 10.0],

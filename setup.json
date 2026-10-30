@@ -12,7 +12,7 @@
         "Natural Language :: English",
         "Framework :: AiiDA"
     ],
-    "version": "0.2.2",
+    "version": "0.3.0",
     "entry_points": {
         "aiida.calculations": [
             "spirit = aiida_spirit.calculations:SpiritCalculation"
@@ -22,13 +22,12 @@
         ]
     },
     "include_package_data": true,
-    "setup_requires": ["reentry"],
-    "reentry_register": true,
     "install_requires": [
-        "aiida-core>=1.1.0,<3.0.0",
+        "aiida-core>=2.6,<3.0.0",
         "numpy",
         "pandas",
-        "masci-tools"
+        "masci-tools",
+        "tomli-w"
     ],
     "extras_require": {
         "testing": [
@@ -36,12 +35,11 @@
             "wheel>=0.31",
             "coverage",
             "pytest>=3.6",
-            "pytest-cov",
-            "spirit"
+            "pytest-cov"
         ],
         "pre-commit": [
-            "astroid<2.5",
             "pre-commit>=2.2",
+            "setuptools",
             "pylint>=2.5.0"
         ],
         "docs": [
@@ -50,5 +48,6 @@
             "sphinxcontrib-details-directive; python_version>='3.0'",
             "sphinx-rtd-theme"
         ]
-    }
+    },
+    "python_requires": ">=3.11"
 }

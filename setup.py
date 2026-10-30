@@ -8,12 +8,14 @@ if __name__ == '__main__':
     # such that it can be discovered automatically
     with open('setup.json', 'r') as info:
         kwargs = json.load(info)
+    with open('README.md') as readme:
+        long_description = readme.read()
     setup(
         packages=find_packages(include=['aiida_spirit', 'aiida_spirit.*']),
         # this doesn't work when placed in setup.json (something to do with str type)
         package_data={
             '': ['*'],
         },
-        long_description=open('README.md').read(),
+        long_description=long_description,
         long_description_content_type='text/markdown',
         **kwargs)

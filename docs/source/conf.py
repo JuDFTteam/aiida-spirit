@@ -16,13 +16,15 @@ import sys
 import time
 
 import aiida_spirit
-from aiida.manage.configuration import load_documentation_profile
+from aiida import load_profile
+from aiida.storage.sqlite_temp import SqliteTempBackend
 
 # -- AiiDA-related setup --------------------------------------------------
 
-# Load the dummy profile even if we are running locally, this way the documentation will succeed even if the current
-# default profile of the AiiDA installation does not use a Django backend.
-load_documentation_profile()
+# Load a temporary in-memory profile, so that the documentation builds without an AiiDA installation
+# (load_documentation_profile of aiida-core 1 does not exist anymore)
+load_profile(SqliteTempBackend.create_profile('aiida-spirit-docs'),
+             allow_switch=True)
 
 # If we are not on READTHEDOCS load the Sphinx theme manually
 if not os.environ.get('READTHEDOCS', None):
